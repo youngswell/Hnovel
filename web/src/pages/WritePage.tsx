@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchStory, generateOutline, generateChapter, generateWritingPlan, fetchChapters, fetchOutline, getApiErrorDiagnostic, getApiErrorMessage, saveOutline, type ApiErrorDiagnostic } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { AiErrorPanel } from '../components/AiErrorPanel'
@@ -9,6 +9,7 @@ import type { OutlineChapter, WritingPlan } from '../lib/types'
 
 export function WritePage() {
   const { id } = useParams<{ id: string }>()
+  const queryClient = useQueryClient()
   const { data: story } = useQuery({ queryKey: ['story', id], queryFn: () => fetchStory(id!), enabled: !!id })
   const { data: existingChapters } = useQuery({ queryKey: ['chapters', id], queryFn: () => fetchChapters(id!), enabled: !!id })
   const { data: savedOutline } = useQuery({ queryKey: ['outline', id], queryFn: () => fetchOutline(id!), enabled: !!id })
@@ -31,10 +32,16 @@ export function WritePage() {
   while (occupiedChapterNumbers.has(nextChapterNum)) nextChapterNum++
   const maxWrittenChapter = existingChapters?.reduce((max, chapter) => Math.max(max, chapter.chapter_number || 0), 0) || 0
   const maxSavedOutlineChapter = outlineChapters.reduce((max, chapter) => Math.max(max, chapter.number || 0), 0)
-  const outlineActionButtonClass = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary border border-primary/50 text-white hover:bg-primary-dark hover:border-primary-dark rounded-xl text-sm font-medium transition-all shadow-sm shadow-primary/20 whitespace-nowrap'
+  const outlineActionButtonClass = 'inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary border border-primary/50 text-white hover:bg-primary-dark hover:border-primary-dark disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-sm font-medium transition-all shadow-sm shadow-primary/20 whitespace-nowrap'
+  const writtenChapterNumbers = new Set((existingChapters || []).map(chapter => chapter.chapter_number))
+  const pendingOutlineChapters = [...outlineChapters]
+    .sort((a, b) => a.number - b.number)
+    .filter(chapter => !writtenChapterNumbers.has(chapter.number) && !generatedChapters.has(chapter.number))
 
   const [generating, setGenerating] = useState(false)
   const [writingIndex, setWritingIndex] = useState(-1)
+  const [batchGenerating, setBatchGenerating] = useState(false)
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 })
   const [editingChapter, setEditingChapter] = useState(-1)
   const [editForm, setEditForm] = useState({ title: '', summary: '' })
   const [aiError, setAiError] = useState<ApiErrorDiagnostic | null>(null)
@@ -48,6 +55,8 @@ export function WritePage() {
     switchStory(id)
     setGenerating(false)
     setWritingIndex(-1)
+    setBatchGenerating(false)
+    setBatchProgress({ current: 0, total: 0 })
     setEditingChapter(-1)
     setAiError(null)
     setShowExistingChapters(false)
@@ -119,29 +128,79 @@ export function WritePage() {
     }
   }
 
+  const generateChapterFromOutline = async (requestStoryId: string, chap: OutlineChapter) => {
+    const result = await generateChapter(requestStoryId, {
+      chapterNumber: chap.number, chapterTitle: chap.title,
+      chapterSummary: chap.summary,
+      intensityLevel: chap.nsfw ? 10 : 2,
+      explicitLevel: 'graphic', minWords: Math.max(500, chap.estimatedWords - 500),
+      maxWords: chap.estimatedWords + 1000,
+      focusCharacters: focusCharacters ? focusCharacters.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+    })
+    if (useWriteStore.getState().activeStoryId === requestStoryId) {
+      setGeneratedChapter(result)
+      addGeneratedChapter(chap.number)
+      void queryClient.invalidateQueries({ queryKey: ['chapters', requestStoryId] })
+      void queryClient.invalidateQueries({ queryKey: ['story', requestStoryId] })
+      void queryClient.invalidateQueries({ queryKey: ['stories'] })
+    }
+    return result
+  }
+
   const handleGenerateChapter = async (chap: OutlineChapter) => {
+    if (generating) return
     const requestStoryId = id!
     setAiError(null)
     setWritingIndex(chap.number); setGenerating(true); setGeneratedChapter(null)
     try {
-      const result = await generateChapter(requestStoryId, {
-        chapterNumber: chap.number, chapterTitle: chap.title,
-        chapterSummary: chap.summary,
-        intensityLevel: chap.nsfw ? 10 : 2,
-        explicitLevel: 'graphic', minWords: Math.max(500, chap.estimatedWords - 500),
-        maxWords: chap.estimatedWords + 1000,
-        focusCharacters: focusCharacters ? focusCharacters.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-      })
-      if (useWriteStore.getState().activeStoryId === requestStoryId) {
-        setGeneratedChapter(result)
-        addGeneratedChapter(chap.number)
-      }
+      await generateChapterFromOutline(requestStoryId, chap)
     } catch (error) {
       if (useWriteStore.getState().activeStoryId === requestStoryId) {
         setAiError(getApiErrorDiagnostic(error, `第${chap.number}章生成失败`))
       }
     } finally {
       if (useWriteStore.getState().activeStoryId === requestStoryId) setGenerating(false)
+    }
+  }
+
+  const handleBatchGenerateChapters = async () => {
+    if (generating) return
+    const pending = pendingOutlineChapters
+
+    if (pending.length === 0) {
+      alert('没有可批量生成的未写章节')
+      return
+    }
+    if (!confirm(`将按大纲顺序连续生成 ${pending.length} 章。生成期间请不要关闭页面，是否继续？`)) return
+
+    const requestStoryId = id!
+    setAiError(null)
+    setGeneratedChapter(null)
+    setBatchGenerating(true)
+    setGenerating(true)
+    setBatchProgress({ current: 0, total: pending.length })
+
+    let currentChapterNumber = 0
+    try {
+      for (let index = 0; index < pending.length; index++) {
+        const chap = pending[index]
+        if (useWriteStore.getState().activeStoryId !== requestStoryId) return
+        currentChapterNumber = chap.number
+        setWritingIndex(chap.number)
+        setBatchProgress({ current: index + 1, total: pending.length })
+        await generateChapterFromOutline(requestStoryId, chap)
+      }
+    } catch (error) {
+      if (useWriteStore.getState().activeStoryId === requestStoryId) {
+        setAiError(getApiErrorDiagnostic(error, `批量生成失败：第${currentChapterNumber || writingIndex}章`))
+      }
+    } finally {
+      if (useWriteStore.getState().activeStoryId === requestStoryId) {
+        setGenerating(false)
+        setBatchGenerating(false)
+        setBatchProgress({ current: 0, total: 0 })
+        setWritingIndex(-1)
+      }
     }
   }
 
@@ -497,19 +556,32 @@ export function WritePage() {
               </p>
             </div>
             <div className="flex gap-2">
+              <button type="button" onClick={() => void handleBatchGenerateChapters()}
+                disabled={generating || pendingOutlineChapters.length === 0}
+                className={`${outlineActionButtonClass} disabled:opacity-40 disabled:cursor-not-allowed`}>
+                {batchGenerating ? (
+                  <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />批量生成 {batchProgress.current}/{batchProgress.total}</>
+                ) : (
+                  <><Icon name="sparkle" className="w-4 h-4" />按顺序生成</>
+                )}
+              </button>
               <button type="button" onClick={appendOutlineChapter}
+                disabled={generating}
                 className={outlineActionButtonClass}>
                 <Icon name="plus" className="w-4 h-4" />添加章节
               </button>
               <button type="button" onClick={() => void clearOutline()}
+                disabled={generating}
                 className={outlineActionButtonClass}>
                 <Icon name="refresh" className="w-4 h-4" />继续生成
               </button>
               <button type="button" onClick={clearOutlineRange}
+                disabled={generating}
                 className={outlineActionButtonClass}>
                 清空范围
               </button>
               <button type="button" onClick={clearUnwrittenOutline}
+                disabled={generating}
                 className={outlineActionButtonClass}>
                 清空未写
               </button>
@@ -604,10 +676,12 @@ export function WritePage() {
                       <p className="text-xs text-text-muted line-clamp-3 mb-3">{chap.summary}</p>
                       <p className="text-xs text-text-muted mb-3">{chap.estimatedWords.toLocaleString()} 字预估</p>
                       <button type="button" onClick={() => handleGenerateChapter(chap)}
-                        disabled={generating && writingIndex === chap.number}
+                        disabled={generating}
                         className="w-full py-2 bg-primary hover:bg-primary-dark disabled:opacity-40 text-white rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5">
                         {generating && writingIndex === chap.number ? (
-                          <><div className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" /> 生成中...</>
+                          <><div className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" /> {batchGenerating ? `批量中 ${batchProgress.current}/${batchProgress.total}` : '生成中...'}</>
+                        ) : generating ? (
+                          <>任务进行中</>
                         ) : (
                           <><Icon name="sparkle" className="w-3.5 h-3.5" /> 生成本章</>
                         )}
@@ -628,8 +702,12 @@ export function WritePage() {
                   <div className="flex items-center justify-center py-20">
                     <div className="text-center">
                       <div className="animate-spin w-10 h-10 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-                      <p className="text-text-secondary font-medium">正在生成第{writingIndex}章...</p>
-                      <p className="text-xs text-text-muted mt-1">约需30-60秒</p>
+                      <p className="text-text-secondary font-medium">
+                        {batchGenerating
+                          ? `正在批量生成第${writingIndex}章（${batchProgress.current}/${batchProgress.total}）...`
+                          : `正在生成第${writingIndex}章...`}
+                      </p>
+                      <p className="text-xs text-text-muted mt-1">{batchGenerating ? '会按大纲顺序逐章生成，请保持页面打开' : '约需30-60秒'}</p>
                     </div>
                   </div>
                 ) : generatedChapter ? (
