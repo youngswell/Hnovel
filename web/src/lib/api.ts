@@ -55,6 +55,34 @@ export function getApiErrorDiagnostic(error: unknown, title = 'AI 生成失败')
   }
 }
 
+export interface LlmSettings {
+  apiKey: string
+  baseURL: string
+  model: string
+  configured?: boolean
+}
+
+export interface LlmTestResult {
+  ok: boolean
+  configured: boolean
+  baseURL: string
+  model: string
+  sample?: string
+  error?: string
+}
+
+export async function fetchLlmSettings(): Promise<LlmSettings> {
+  return (await api.get('/settings/llm')).data
+}
+
+export async function saveLlmSettings(settings: LlmSettings): Promise<LlmSettings> {
+  return (await api.put('/settings/llm', settings)).data
+}
+
+export async function testLlmSettings(settings?: Partial<LlmSettings>): Promise<LlmTestResult> {
+  return (await api.post('/settings/llm/test', settings || {})).data
+}
+
 // Stories
 export async function fetchStories(): Promise<Story[]> {
   const { data } = await api.get('/stories')
@@ -98,6 +126,13 @@ export async function fetchChapter(storyId: string, num: number): Promise<Chapte
 
 export async function saveChapter(storyId: string, num: number, chapter: Partial<Chapter>): Promise<Chapter> {
   const { data } = await api.put(`/stories/${storyId}/chapters/${num}`, chapter)
+  return data
+}
+
+export async function renumberChapter(storyId: string, num: number, chapterNumber: number): Promise<Chapter> {
+  const { data } = await api.patch(`/stories/${storyId}/chapters/${num}/number`, {
+    chapter_number: chapterNumber,
+  })
   return data
 }
 

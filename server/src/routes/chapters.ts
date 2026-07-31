@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { getDatabase } from '../db/index.js'
 import { randomUUID } from 'crypto'
-import { chapterSchema, generateSchema, validateBody, validateChapterNumber } from '../middleware/validation.js'
+import { chapterNumberUpdateSchema, chapterSchema, generateSchema, validateBody, validateChapterNumber } from '../middleware/validation.js'
 
 export const chapterRouter = Router({ mergeParams: true })
 
@@ -63,6 +63,74 @@ chapterRouter.put('/:id/chapters/:num', validateChapterNumber, validateBody(chap
   `).get(getId(req), getNum(req))
   res.json(chapter)
 })
+
+// Change a chapter number and keep its saved outline aligned.
+chapterRouter.patch(
+  '/:id/chapters/:num/number',
+  validateChapterNumber,
+  validateBody(chapterNumberUpdateSchema),
+  (req: Request, res: Response) => {
+    const db = getDatabase()
+    const storyId = getId(req)
+    const oldNumber = Number(getNum(req))
+    const newNumber = req.body.chapter_number
+
+    const chapter = db.prepare(
+      'SELECT * FROM chapters WHERE story_id = ? AND chapter_number = ?',
+    ).get(storyId, oldNumber)
+    if (!chapter) {
+      return res.status(404).json({ error: '章节不存在', code: 'NOT_FOUND' })
+    }
+    if (oldNumber === newNumber) return res.json(chapter)
+
+    const targetChapter = db.prepare(
+      'SELECT id FROM chapters WHERE story_id = ? AND chapter_number = ?',
+    ).get(storyId, newNumber)
+    if (targetChapter) {
+      return res.status(409).json({
+        error: `第${newNumber}章已经存在，请先选择其他章节号`,
+        code: 'CHAPTER_NUMBER_CONFLICT',
+      })
+    }
+
+    const sourceOutline = db.prepare(
+      'SELECT id FROM outline_chapters WHERE story_id = ? AND chapter_number = ?',
+    ).get(storyId, oldNumber)
+    const targetOutline = db.prepare(
+      'SELECT id FROM outline_chapters WHERE story_id = ? AND chapter_number = ?',
+    ).get(storyId, newNumber)
+    if (sourceOutline && targetOutline) {
+      return res.status(409).json({
+        error: `第${newNumber}章已有另一条大纲，无法同步移动当前章节的大纲`,
+        code: 'OUTLINE_NUMBER_CONFLICT',
+      })
+    }
+
+    const renumber = db.transaction(() => {
+      db.prepare(`
+        UPDATE chapters
+        SET chapter_number = ?, updated_at = datetime('now')
+        WHERE story_id = ? AND chapter_number = ?
+      `).run(newNumber, storyId, oldNumber)
+
+      if (sourceOutline) {
+        db.prepare(`
+          UPDATE outline_chapters
+          SET chapter_number = ?, updated_at = datetime('now')
+          WHERE story_id = ? AND chapter_number = ?
+        `).run(newNumber, storyId, oldNumber)
+      }
+
+      db.prepare("UPDATE stories SET updated_at = datetime('now') WHERE id = ?").run(storyId)
+    })
+    renumber()
+
+    const updated = db.prepare(
+      'SELECT * FROM chapters WHERE story_id = ? AND chapter_number = ?',
+    ).get(storyId, newNumber)
+    res.json(updated)
+  },
+)
 
 // Delete chapter
 chapterRouter.delete('/:id/chapters/:num', validateChapterNumber, (req: Request, res: Response) => {

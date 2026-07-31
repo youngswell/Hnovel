@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchStory, generateOutline, generateChapter, generateWritingPlan, fetchChapters, fetchOutline, getApiErrorDiagnostic, getApiErrorMessage, saveOutline, type ApiErrorDiagnostic } from '../lib/api'
+import { fetchStory, generateOutline, generateChapter, generateWritingPlan, fetchChapters, fetchOutline, getApiErrorDiagnostic, getApiErrorMessage, renumberChapter, saveOutline, type ApiErrorDiagnostic } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { AiErrorPanel } from '../components/AiErrorPanel'
 import { useWriteStore } from '../stores/writeStore'
@@ -21,8 +21,10 @@ export function WritePage() {
     phase, setPhase, outlineChapters, setOutlineChapters,
     generatedChapters, addGeneratedChapter, generatedChapter,
     setGeneratedChapter, setConfig, updateChapter, deleteChapter,
+    generating, setGenerating, writingIndex, setWritingIndex,
+    batchGenerating, setBatchGenerating, batchProgress, setBatchProgress,
     chapterCount, minWords, maxWords,
-    focusCharacters, outlineDirection, chapterPrompts, setChapterPrompt,
+    focusCharacters, outlineMode, batchContent, chapterPrompts, setChapterPrompt,
   } = useWriteStore()
 
   const occupiedChapterNumbers = new Set<number>()
@@ -37,13 +39,14 @@ export function WritePage() {
   const pendingOutlineChapters = [...outlineChapters]
     .sort((a, b) => a.number - b.number)
     .filter(chapter => !writtenChapterNumbers.has(chapter.number) && !generatedChapters.has(chapter.number))
+  const targetChapterNumbers = Array.from({ length: chapterCount }, (_, index) => nextChapterNum + index)
+  const completedManualPrompts = targetChapterNumbers.filter(number => chapterPrompts[number]?.trim()).length
+  const canGenerateOutline = outlineMode === 'auto'
+    ? Boolean(batchContent.trim())
+    : completedManualPrompts === targetChapterNumbers.length
 
-  const [generating, setGenerating] = useState(false)
-  const [writingIndex, setWritingIndex] = useState(-1)
-  const [batchGenerating, setBatchGenerating] = useState(false)
-  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 })
   const [editingChapter, setEditingChapter] = useState(-1)
-  const [editForm, setEditForm] = useState({ title: '', summary: '' })
+  const [editForm, setEditForm] = useState({ number: '', title: '', summary: '' })
   const [aiError, setAiError] = useState<ApiErrorDiagnostic | null>(null)
   const [showExistingChapters, setShowExistingChapters] = useState(false)
   const [planning, setPlanning] = useState(false)
@@ -53,10 +56,6 @@ export function WritePage() {
   useEffect(() => {
     if (!id) return
     switchStory(id)
-    setGenerating(false)
-    setWritingIndex(-1)
-    setBatchGenerating(false)
-    setBatchProgress({ current: 0, total: 0 })
     setEditingChapter(-1)
     setAiError(null)
     setShowExistingChapters(false)
@@ -66,6 +65,7 @@ export function WritePage() {
 
   useEffect(() => {
     if (!id || !savedOutline || useWriteStore.getState().activeStoryId !== id) return
+    if (useWriteStore.getState().generating && useWriteStore.getState().outlineChapters.length > 0) return
     setOutlineChapters(savedOutline)
     for (const chapter of existingChapters || []) addGeneratedChapter(chapter.chapter_number)
     setPhase(savedOutline.length > 0 ? 'outline' : 'idle')
@@ -101,13 +101,16 @@ export function WritePage() {
     try {
       const result = await generateOutline(requestStoryId, {
         chapterCount, chapterNumber: nextChapterNum, minWords, maxWords, intensityLevel: 10, explicitLevel: 'graphic',
-        outlineDirection: outlineDirection.trim() || undefined,
+        outlineMode,
+        batchContent: outlineMode === 'auto' ? batchContent.trim() : undefined,
         focusCharacters: focusCharacters ? focusCharacters.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-        additionalInstructions: (() => {
-          const entries = Object.entries(chapterPrompts).filter(([, v]) => v.trim())
+        additionalInstructions: outlineMode === 'manual' ? (() => {
+          const entries = targetChapterNumbers
+            .map(number => [number, chapterPrompts[number] || ''] as const)
+            .filter(([, value]) => value.trim())
           if (entries.length === 0) return undefined
-          return entries.map(([k, v]) => `第${k}章: ${v}`).join('\n')
-        })(),
+          return entries.map(([number, value]) => `第${number}章: ${value}`).join('\n')
+        })() : undefined,
       })
       const nextOutline = mergeOutlineChapters(useWriteStore.getState().outlineChapters, result.chapters)
       try {
@@ -136,6 +139,9 @@ export function WritePage() {
       explicitLevel: 'graphic', minWords: Math.max(500, chap.estimatedWords - 500),
       maxWords: chap.estimatedWords + 1000,
       focusCharacters: focusCharacters ? focusCharacters.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+      outlineMode,
+      batchContent: outlineMode === 'auto' ? batchContent.trim() || undefined : undefined,
+      additionalInstructions: outlineMode === 'manual' ? chapterPrompts[chap.number]?.trim() || undefined : undefined,
     })
     if (useWriteStore.getState().activeStoryId === requestStoryId) {
       setGeneratedChapter(result)
@@ -215,14 +221,47 @@ export function WritePage() {
 
   const startEdit = (chap: OutlineChapter) => {
     setEditingChapter(chap.number)
-    setEditForm({ title: chap.title, summary: chap.summary })
+    setEditForm({ number: String(chap.number), title: chap.title, summary: chap.summary })
   }
 
-  const saveEdit = (chapNum: number) => {
-    const updates = { title: editForm.title, summary: editForm.summary }
-    updateChapter(chapNum, updates)
-    saveOutlineChanges(outlineChapters.map(c => c.number === chapNum ? { ...c, ...updates } : c))
-    setEditingChapter(-1)
+  const saveEdit = async (chapNum: number) => {
+    const nextNumber = Number(editForm.number)
+    if (!Number.isInteger(nextNumber) || nextNumber < 1) {
+      alert('章节号必须是正整数')
+      return
+    }
+    if (outlineChapters.some(chapter => chapter.number === nextNumber && chapter.number !== chapNum)) {
+      alert(`第${nextNumber}章已经有大纲，请换一个章节号`)
+      return
+    }
+    if (existingChapters?.some(chapter => chapter.chapter_number === nextNumber && chapter.chapter_number !== chapNum)) {
+      alert(`第${nextNumber}章已经有正文，请换一个章节号`)
+      return
+    }
+
+    const next = outlineChapters
+      .map(chapter => chapter.number === chapNum
+        ? { ...chapter, number: nextNumber, title: editForm.title, summary: editForm.summary }
+        : chapter)
+      .sort((a, b) => a.number - b.number)
+
+    try {
+      if (nextNumber !== chapNum && writtenChapterNumbers.has(chapNum)) {
+        await renumberChapter(id!, chapNum, nextNumber)
+      }
+      await persistOutline(next)
+      setOutlineChapters(next)
+      for (const chapter of existingChapters || []) {
+        addGeneratedChapter(chapter.chapter_number === chapNum ? nextNumber : chapter.chapter_number)
+      }
+      setEditingChapter(-1)
+      void queryClient.invalidateQueries({ queryKey: ['chapters', id] })
+      void queryClient.invalidateQueries({ queryKey: ['outline', id] })
+      void queryClient.invalidateQueries({ queryKey: ['story', id] })
+      void queryClient.invalidateQueries({ queryKey: ['stories'] })
+    } catch (error) {
+      alert('保存大纲章节失败: ' + getApiErrorMessage(error))
+    }
   }
 
   const removeOutlineChapter = (chapNum: number) => {
@@ -305,7 +344,9 @@ export function WritePage() {
       const plan = await generateWritingPlan(requestStoryId, {
         chapterStart: nextChapterNum,
         chapterCount: Math.min(chapterCount || 5, 12),
-        focus: outlineDirection.trim() || undefined,
+        focus: outlineMode === 'auto'
+          ? batchContent.trim() || undefined
+          : targetChapterNumbers.map(number => chapterPrompts[number]?.trim()).filter(Boolean).join('\n') || undefined,
       })
       if (useWriteStore.getState().activeStoryId === requestStoryId) setWritingPlan(plan)
     } catch (error) {
@@ -497,44 +538,62 @@ export function WritePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-text-primary mb-1">
-                  本批章节主体方向 <span className="text-text-muted">(整体目标)</span>
-                </label>
-                <textarea value={outlineDirection}
-                  onChange={e => setConfig({ outlineDirection: e.target.value })}
-                  rows={4}
-                  placeholder="例如：这五章主要完成主角加入宗门、与核心女主建立初步信任，并在最后发现宗门内部的阴谋线索。"
-                  className="w-full px-4 py-2.5 bg-bg-dark border border-border rounded-xl text-sm focus:border-primary focus:outline-none resize-none placeholder:text-text-muted" />
-                <p className="text-xs text-text-muted mt-1">AI 会让本批所有章节围绕这个方向推进，并在最后一章形成阶段性落点。</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-text-primary mb-2">
-                  逐章内容提示 <span className="text-text-muted">(可选，空的内容AI将自由生成)</span>
-                </label>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {existingCount > 0 && (
-                    <p className="text-xs text-text-muted mb-1">已有 {existingCount} 章，新大纲从第 {nextChapterNum} 章开始</p>
-                  )}
-                  {Array.from({ length: chapterCount }, (_, i) => nextChapterNum + i).map(num => (
-                    <div key={num} className="flex gap-2 items-start">
-                      <span className="text-xs font-mono text-text-muted bg-bg-card px-2 py-1.5 rounded-lg border border-border w-14 text-center flex-shrink-0 mt-0.5">
-                        Ch.{num}
-                      </span>
-                      <input
-                        type="text"
-                        value={chapterPrompts[num] || ''}
-                        onChange={e => setChapterPrompt(num, e.target.value)}
-                        placeholder={`第${num}章的内容提示（可留空）`}
-                        className="flex-1 px-3 py-2 bg-bg-dark border border-border rounded-lg text-sm focus:border-primary focus:outline-none placeholder:text-text-muted"
-                      />
-                    </div>
-                  ))}
+                <label className="block text-xs font-medium text-text-primary mb-2">大纲生成模式</label>
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-bg-dark p-1 border border-border">
+                  <button type="button" onClick={() => setConfig({ outlineMode: 'auto' })}
+                    className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${outlineMode === 'auto' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}>
+                    <Icon name="sparkle" className="w-4 h-4 inline mr-1.5" />自动模式
+                  </button>
+                  <button type="button" onClick={() => setConfig({ outlineMode: 'manual' })}
+                    className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${outlineMode === 'manual' ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}>
+                    <Icon name="edit" className="w-4 h-4 inline mr-1.5" />手动模式
+                  </button>
                 </div>
               </div>
+
+              {outlineMode === 'auto' ? (
+                <div>
+                  <label className="block text-xs font-medium text-text-primary mb-1">本批主要内容</label>
+                  <textarea value={batchContent}
+                    onChange={e => setConfig({ batchContent: e.target.value })}
+                    rows={5}
+                    placeholder={`描述接下来 ${chapterCount} 章主要写什么。AI 会自动拆分事件、安排节奏并生成多章大纲。\n\n例如：主角参加宗门考核，在危机中与女主建立信任，成功入门后发现考核记录被人篡改。`}
+                    className="w-full px-4 py-2.5 bg-bg-dark border border-border rounded-xl text-sm focus:border-primary focus:outline-none resize-none placeholder:text-text-muted" />
+                  <p className="text-xs text-text-muted mt-1">AI 会将这些内容自动拆成第 {nextChapterNum}-{nextChapterNum + chapterCount - 1} 章，并保持前后因果。</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-medium text-text-primary">逐章内容提示</label>
+                    <span className={`text-xs ${completedManualPrompts === targetChapterNumbers.length ? 'text-success' : 'text-text-muted'}`}>
+                      已填写 {completedManualPrompts}/{targetChapterNumbers.length}
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {existingCount > 0 && (
+                      <p className="text-xs text-text-muted mb-1">已有 {existingCount} 章，新大纲从第 {nextChapterNum} 章开始</p>
+                    )}
+                    {targetChapterNumbers.map(num => (
+                      <div key={num} className="flex gap-2 items-start">
+                        <span className="text-xs font-mono text-text-muted bg-bg-card px-2 py-2 rounded-lg border border-border w-14 text-center flex-shrink-0">
+                          Ch.{num}
+                        </span>
+                        <textarea
+                          value={chapterPrompts[num] || ''}
+                          onChange={e => setChapterPrompt(num, e.target.value)}
+                          rows={2}
+                          placeholder={`第${num}章要发生的主要事件`}
+                          className="flex-1 px-3 py-2 bg-bg-dark border border-border rounded-lg text-sm focus:border-primary focus:outline-none resize-none placeholder:text-text-muted"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-text-muted mt-1">手动模式需要填写本批每一章，AI 不会自行替换章节方向。</p>
+                </div>
+              )}
             </div>
 
-            <button type="button" onClick={handleGenerateOutline} disabled={generating}
+            <button type="button" onClick={handleGenerateOutline} disabled={generating || !canGenerateOutline}
               className="w-full mt-6 py-3 bg-primary hover:bg-primary-dark disabled:opacity-40 text-white rounded-xl font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2">
               {generating ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> 生成大纲中...</>
                 : <><Icon name="sparkle" className="w-4 h-4" /> 生成大纲</>}
@@ -631,7 +690,12 @@ export function WritePage() {
                   {editingChapter === chap.number ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-text-muted">Ch.{chap.number}</span>
+                        <label className="flex items-center gap-1.5 text-xs text-text-muted">
+                          章节号
+                          <input type="number" min={1} step={1} value={editForm.number}
+                            onChange={e => setEditForm({ ...editForm, number: e.target.value })}
+                            className="w-20 px-2 py-1 bg-bg-dark border border-border rounded-lg text-xs font-mono text-text-primary focus:border-primary focus:outline-none" />
+                        </label>
                         {chap.nsfw && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary-bg text-primary">重点</span>}
                       </div>
                       <input type="text" value={editForm.title}
@@ -641,7 +705,7 @@ export function WritePage() {
                         onChange={e => setEditForm({ ...editForm, summary: e.target.value })} rows={3}
                         className="w-full px-3 py-1.5 bg-bg-dark border border-border rounded-lg text-xs focus:border-primary focus:outline-none resize-none" />
                       <div className="flex gap-1.5">
-                        <button type="button" onClick={() => saveEdit(chap.number)}
+                        <button type="button" onClick={() => void saveEdit(chap.number)}
                           className="flex-1 py-1.5 bg-primary text-white rounded-lg text-xs font-medium">保存</button>
                         <button type="button" onClick={() => setEditingChapter(-1)}
                           className="px-2 py-1.5 border border-border text-text-secondary rounded-lg text-xs">取消</button>

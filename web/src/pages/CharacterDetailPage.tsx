@@ -40,7 +40,11 @@ type CharacterForm = {
   personality: string
   background: string
   current_goal: string
+  core_conflict: string
+  character_arc: string
+  relation_to_plot: string
   voice_style: string
+  secrets: string
   writing_notes: string
   tagsText: string
 }
@@ -78,7 +82,11 @@ function toForm(character: CharacterDetail): CharacterForm {
     personality: character.personality || '',
     background: character.background || '',
     current_goal: character.current_goal || '',
+    core_conflict: character.core_conflict || '',
+    character_arc: character.character_arc || '',
+    relation_to_plot: character.relation_to_plot || '',
     voice_style: character.voice_style || '',
+    secrets: character.secrets || '',
     writing_notes: character.writing_notes || '',
     tagsText: parseList(character.tags).join(', '),
   }
@@ -128,7 +136,11 @@ export function CharacterDetailPage() {
       personality: payload.personality,
       background: payload.background,
       current_goal: payload.current_goal,
+      core_conflict: payload.core_conflict,
+      character_arc: payload.character_arc,
+      relation_to_plot: payload.relation_to_plot,
       voice_style: payload.voice_style,
+      secrets: payload.secrets,
       writing_notes: payload.writing_notes,
       tags: splitTags(payload.tagsText),
     }),
@@ -222,7 +234,11 @@ export function CharacterDetailPage() {
             <Field label="性格"><textarea value={form.personality} onChange={e => setForm({ ...form, personality: e.target.value })} rows={3} className={`${inputClass} resize-none`} /></Field>
             <Field label="背景"><textarea value={form.background} onChange={e => setForm({ ...form, background: e.target.value })} rows={3} className={`${inputClass} resize-none`} /></Field>
             <Field label="当前目标"><input value={form.current_goal} onChange={e => setForm({ ...form, current_goal: e.target.value })} className={inputClass} /></Field>
+            <Field label="核心矛盾"><textarea value={form.core_conflict} onChange={e => setForm({ ...form, core_conflict: e.target.value })} rows={3} className={`${inputClass} resize-none`} placeholder="欲望、恐惧、责任或价值观之间的冲突" /></Field>
+            <Field label="成长弧线"><textarea value={form.character_arc} onChange={e => setForm({ ...form, character_arc: e.target.value })} rows={3} className={`${inputClass} resize-none`} placeholder="起点、关键转变与可能终点" /></Field>
+            <Field label="与主线的关系"><textarea value={form.relation_to_plot} onChange={e => setForm({ ...form, relation_to_plot: e.target.value })} rows={3} className={`${inputClass} resize-none`} placeholder="角色会推动、阻碍或改变哪部分主线" /></Field>
             <Field label="说话风格"><input value={form.voice_style} onChange={e => setForm({ ...form, voice_style: e.target.value })} className={inputClass} /></Field>
+            <Field label="秘密"><textarea value={form.secrets} onChange={e => setForm({ ...form, secrets: e.target.value })} rows={2} className={`${inputClass} resize-none`} placeholder="幕后事实，不代表正文应立即揭示" /></Field>
             <Field label="写作注意事项"><textarea value={form.writing_notes} onChange={e => setForm({ ...form, writing_notes: e.target.value })} rows={2} className={`${inputClass} resize-none`} /></Field>
             <Field label="标签"><input value={form.tagsText} onChange={e => setForm({ ...form, tagsText: e.target.value })} className={inputClass} placeholder="逗号分隔" /></Field>
           </div>

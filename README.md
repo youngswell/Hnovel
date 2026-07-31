@@ -82,6 +82,8 @@ http://localhost:3000
 http://localhost:4000
 ```
 
+也可以在应用内进入“应用设置”，直接填写 API Key、Base URL 和模型名称。应用内保存的设置会优先于 `server/.env` 生效，保存后下一次 AI 生成会立即使用新配置。
+
 ## 常用命令
 
 ```bash

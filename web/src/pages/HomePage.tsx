@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchStories, createStory, deleteStory } from '../lib/api'
 import { Icon } from '../components/Icon'
+import { ModalPortal } from '../components/ModalPortal'
 import type { Story } from '../lib/types'
 
 export function HomePage() {
@@ -42,8 +43,8 @@ export function HomePage() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 modal-enter">
-          <div className="bg-bg-card border border-border rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl">
+        <ModalPortal>
+          <div className="bg-bg-card border border-border rounded-2xl p-6 w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">创建新故事</h2>
               <button type="button" onClick={() => setShowCreate(false)} className="text-text-muted hover:text-text-primary">
@@ -104,7 +105,7 @@ export function HomePage() {
                 className="px-5 py-2.5 border border-border hover:bg-bg-dark text-text-secondary rounded-xl text-sm transition-all">取消</button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {isLoading ? (

@@ -65,6 +65,10 @@ export const chapterSchema = z.object({
   word_count: z.number().nonnegative().optional(),
 })
 
+export const chapterNumberUpdateSchema = z.object({
+  chapter_number: z.number().int().positive('章节编号必须是正整数'),
+})
+
 export const generateSchema = z.object({
   focusCharacters: z.array(z.string()).max(30).optional(),
   sceneType: z.string().max(100).optional(),
@@ -73,7 +77,8 @@ export const generateSchema = z.object({
   minWords: z.number().int().min(100).max(100000).optional(),
   maxWords: z.number().int().min(100).max(100000).optional(),
   additionalInstructions: z.string().max(100000).optional(),
-  outlineDirection: z.string().max(20000).optional(),
+  outlineMode: z.enum(['auto', 'manual']).optional(),
+  batchContent: z.string().max(20000).optional(),
   referenceStyle: z.string().max(100000).optional(),
   styleProfile: z.string().max(20000).optional(),
   chapterCount: z.number().int().min(1).max(50).optional(),

@@ -1,10 +1,4 @@
-import OpenAI from 'openai'
-
-const client = new OpenAI({
-  apiKey: process.env.LLM_API_KEY || '',
-  baseURL: process.env.LLM_BASE_URL || 'https://opencode.ai/zen/go/v1',
-})
-const MODEL = process.env.LLM_MODEL || 'deepseek-v4-flash'
+import { getLlmConfig, getOpenAIClient } from '../config/llm.js'
 
 const STYLE_SECTIONS = [
   '叙事视角与距离',
@@ -57,8 +51,9 @@ function ensureCompleteProfile(profile: string): string {
 }
 
 async function analyzeStyleChunk(sample: string, index: number, total: number): Promise<string> {
-  const response = await client.chat.completions.create({
-    model: MODEL,
+  const { model } = getLlmConfig()
+  const response = await getOpenAIClient().chat.completions.create({
+    model,
     max_tokens: 1800,
     temperature: 0.2,
     messages: [
@@ -99,8 +94,9 @@ export async function analyzeWritingStyle(referenceText: string): Promise<string
       partialProfiles.push(await analyzeStyleChunk(chunks[i], i, chunks.length))
     }
 
-    const response = await client.chat.completions.create({
-      model: MODEL,
+    const { model } = getLlmConfig()
+    const response = await getOpenAIClient().chat.completions.create({
+      model,
       max_tokens: 6000,
       temperature: 0.2,
       messages: [
@@ -129,8 +125,9 @@ ${partialProfiles.map((profile, index) => `### 分段分析 ${index + 1}\n${prof
     return ensureCompleteProfile(profile)
   }
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
+  const { model } = getLlmConfig()
+  const response = await getOpenAIClient().chat.completions.create({
+    model,
     max_tokens: 5000,
     temperature: 0.2,
     messages: [

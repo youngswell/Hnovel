@@ -11,6 +11,7 @@ import { PlotPage } from './pages/PlotPage'
 import { ChaptersPage } from './pages/ChaptersPage'
 import { ChapterEditPage } from './pages/ChapterEditPage'
 import { WritePage } from './pages/WritePage'
+import { SettingsPage } from './pages/SettingsPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +26,7 @@ function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/story/:id" element={<StoryPage />} />
             <Route path="/story/:id/bible" element={<BiblePage />} />
             <Route path="/story/:id/characters" element={<CharactersPage />} />

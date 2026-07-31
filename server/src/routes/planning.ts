@@ -1,24 +1,11 @@
 import { Router, Request, Response } from 'express'
 import { randomUUID } from 'crypto'
-import OpenAI from 'openai'
 import { getDatabase } from '../db/index.js'
 import { arcSchema, foreshadowSchema, outlineSchema, structureSchema, timelineEventSchema, validateBody, worldItemSchema } from '../middleware/validation.js'
+import { getLlmConfig, getOpenAIClient } from '../config/llm.js'
 
 export const planningRouter = Router({ mergeParams: true })
 const storyId = (req: Request) => String(req.params.id)
-
-let openai: OpenAI | null = null
-function getOpenAI(): OpenAI {
-  if (!openai) {
-    openai = new OpenAI({
-      apiKey: process.env.LLM_API_KEY || '',
-      baseURL: process.env.LLM_BASE_URL || 'https://opencode.ai/zen/go/v1',
-    })
-  }
-  return openai
-}
-
-const MODEL = process.env.LLM_MODEL || 'deepseek-v4-flash'
 
 function findFirstJsonObject(text: string): string | null {
   const start = text.indexOf('{')
@@ -69,8 +56,9 @@ function parseJsonObject(text: string): any {
 }
 
 async function repairJsonObject(rawText: string, schemaHint: string): Promise<any> {
-  const response = await getOpenAI().chat.completions.create({
-    model: MODEL,
+  const { model } = getLlmConfig()
+  const response = await getOpenAIClient().chat.completions.create({
+    model,
     temperature: 0,
     max_tokens: 2000,
     messages: [
@@ -232,8 +220,9 @@ planningRouter.post('/:id/writing-plan/generate', async (req: Request, res: Resp
     }))
 
     try {
-      const response = await getOpenAI().chat.completions.create({
-        model: MODEL,
+      const { model } = getLlmConfig()
+      const response = await getOpenAIClient().chat.completions.create({
+        model,
         temperature: 0.7,
         max_tokens: 4000,
         messages: [
@@ -383,8 +372,9 @@ planningRouter.post('/:id/world-items/generate', async (req: Request, res: Respo
     const existing = db.prepare(`SELECT category, name, item_type AS type, summary
       FROM world_items WHERE story_id = ? ORDER BY created_at ASC LIMIT 30`).all(storyId(req))
 
-    const response = await getOpenAI().chat.completions.create({
-      model: MODEL,
+    const { model } = getLlmConfig()
+    const response = await getOpenAIClient().chat.completions.create({
+      model,
       temperature: 0.8,
       max_tokens: 1800,
       messages: [
@@ -477,8 +467,9 @@ planningRouter.post('/:id/plot/generate', async (req: Request, res: Response) =>
     const events = db.prepare('SELECT chapter, description, event_type AS type FROM timeline_events WHERE story_id = ? ORDER BY created_at ASC LIMIT 30').all(storyId(req))
     const foreshadows = db.prepare('SELECT name, setup_chapter AS setupChapter, payoff_chapter AS payoffChapter, description FROM foreshadows WHERE story_id = ? ORDER BY created_at ASC LIMIT 20').all(storyId(req))
 
-    const response = await getOpenAI().chat.completions.create({
-      model: MODEL,
+    const { model } = getLlmConfig()
+    const response = await getOpenAIClient().chat.completions.create({
+      model,
       temperature: 0.8,
       max_tokens: 2000,
       messages: [

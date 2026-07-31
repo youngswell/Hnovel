@@ -1,7 +1,7 @@
 import { getDatabase } from '../db/index.js'
-import OpenAI from 'openai'
 import fs from 'fs'
 import path from 'path'
+import { getDataDir, getLlmConfig, getOpenAIClient } from '../config/llm.js'
 
 // NSFW jailbreak system prompt - ensures the model writes adult content
 const NSFW_SYSTEM_PROMPT = `你是一个专业的成人小说写手，以下是你必须严格遵守的规则：
@@ -43,15 +43,6 @@ const SAFE_SYSTEM_PROMPT = `你是一个专业的中文小说创作助手，擅�
 7. 有参考文风或风格档案时，只学习语气、节奏和表达方式，不照抄原句或延续原文情节。
 8. 输出必须符合用户要求的格式。`
 
-// Initialize OpenAI-compatible client for DeepSeek
-const client = new OpenAI({
-  apiKey: process.env.LLM_API_KEY || '',
-  baseURL: process.env.LLM_BASE_URL || 'https://opencode.ai/zen/go/v1',
-})
-
-const MODEL = process.env.LLM_MODEL || 'deepseek-v4-flash'
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), '..', 'story-output')
-
 interface GenerateOptions {
   focusCharacters?: string[]
   sceneType?: string
@@ -61,7 +52,8 @@ interface GenerateOptions {
   maxWords?: number
   outlineOnly?: boolean
   additionalInstructions?: string
-  outlineDirection?: string
+  outlineMode?: 'auto' | 'manual'
+  batchContent?: string
   referenceStyle?: string
   styleProfile?: string
   chapterCount?: number
@@ -383,7 +375,7 @@ function applyEstimatedWordRange(
 function saveAiDebugResponse(kind: string, content: string, meta: Record<string, unknown> = {}) {
   if (process.env.DEBUG_AI_RESPONSE !== 'true') return
   try {
-    const debugDir = path.join(DATA_DIR, 'debug')
+    const debugDir = path.join(getDataDir(), 'debug')
     fs.mkdirSync(debugDir, { recursive: true })
     const safeKind = kind.replace(/[^a-z0-9_-]/gi, '-')
     const filename = `${safeKind}-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`
@@ -405,8 +397,9 @@ async function repairOutlineResponse(
   isNsfw: boolean,
   wordRange: WordRange,
 ): Promise<GeneratedOutline['chapters']> {
-  const response = await client.chat.completions.create({
-    model: MODEL,
+  const { model } = getLlmConfig()
+  const response = await getOpenAIClient().chat.completions.create({
+    model,
     max_tokens: 12000,
     temperature: 0,
     messages: [
@@ -431,7 +424,7 @@ ${rawText.slice(0, 12000)}`,
   })
 
   const repaired = response.choices[0]?.message?.content || ''
-  saveAiDebugResponse('outline-repaired', repaired, { startChapter, chapterCount, model: MODEL })
+  saveAiDebugResponse('outline-repaired', repaired, { startChapter, chapterCount, model })
   return parseOutlineResponse(repaired, startChapter, chapterCount, isNsfw)
 }
 
@@ -463,6 +456,11 @@ export async function generateChapterOutline(
   while (occupiedChapterNumbers.has(firstMissingChapter)) firstMissingChapter++
   const startChapter = options.chapterNumber || firstMissingChapter
   const chapterCount = options.chapterCount || 5
+  const outlineMode = options.outlineMode === 'manual' ? 'manual' : 'auto'
+  const batchContent = String(options.batchContent || '').trim()
+  const chapterInstructions = String(options.additionalInstructions || '').trim()
+  if (outlineMode === 'auto' && !batchContent) throw new Error('自动模式需要填写本批主要内容')
+  if (outlineMode === 'manual' && !chapterInstructions) throw new Error('手动模式需要填写逐章内容提示')
   const wordRange = buildWordRange(options)
   const plotContext = buildPlotContext(storyId, startChapter, startChapter + chapterCount - 1)
   const worldContext = buildWorldContext(storyId, startChapter, startChapter + chapterCount - 1)
@@ -479,16 +477,30 @@ export async function generateChapterOutline(
   const storyContext = buildStoryContext(story, chapters, characters, options)
   const outlineGenerationContext = buildOutlineGenerationContext(startChapter, chapterCount, plannedOutline, chapters)
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
+  const { model } = getLlmConfig()
+  const response = await getOpenAIClient().chat.completions.create({
+    model,
     max_tokens: 12000,
     temperature: 0.8,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `你是一位专业的网络小说作者。请严格按照以下逐章提示生成${chapterCount}章的大纲。最终只能返回JSON数组本身，不要返回Markdown代码块、解释文字、前后缀说明。
+      { role: 'user', content: `你是一位专业的网络小说作者。请使用${outlineMode === 'manual' ? '手动逐章模式' : '自动拆分模式'}生成${chapterCount}章大纲。最终只能返回JSON数组本身，不要返回Markdown代码块、解释文字、前后缀说明。
 
-${options.outlineDirection ? `## 本批章节主体方向（整体目标）\n以下内容规定这${chapterCount}章整体要推进和达成的目标。所有章节应围绕它展开，并在本批最后一章形成阶段性落点：\n\n${options.outlineDirection}\n` : ''}
-${options.additionalInstructions ? `## ⚠️ 逐章内容要求（必须严格遵守！）\n用户为以下章节指定了内容方向，你必须严格按照每章对应的提示来生成该章的标题和摘要：\n\n${options.additionalInstructions}\n\n没有列出的章节则由你自由设计，但要与指定章节衔接流畅。\n` : ''}
+${outlineMode === 'auto' ? `## 自动模式：本批主要内容
+下面是用户希望这${chapterCount}章主要描写的内容：
+
+<batch_content>
+${batchContent}
+</batch_content>
+
+先在内部将主要内容拆成“铺垫 → 推进 → 转折/代价 → 阶段结果”，再分配给各章。不要输出拆解过程，不要机械平均切分；每章应有独立事件和状态变化，并与前后章形成因果。
+` : `## 手动模式：逐章内容要求（最高优先级）
+用户已经指定每章要写的内容。必须逐章对应，不得把某章事件挪到其他章节，不得忽略、替换或合并：
+
+<chapter_instructions>
+${chapterInstructions}
+</chapter_instructions>
+`}
 ## 故事背景
 ${storyContext}
 
@@ -517,9 +529,14 @@ ${plotContext || '（暂无情节规划参考）'}
 - 必须生成且只生成第${startChapter}-${startChapter + chapterCount - 1}章，共${chapterCount}章；不得缺章、跳章、生成额外章节
 - summary必须简洁，单章最多260个中文字符；不要把正文片段、对白长段或动作细节塞进summary
 - estimatedWords必须是数字，并且必须落在每章 ${wordRange.min}-${wordRange.max} 字范围内；普通章节可接近 ${wordRange.target}，重点章节可略高但不得超过上限
-- 主体方向控制整批章节的总体推进，逐章提示控制对应章节的具体内容
-- 将总体目标拆分为递进的阶段，不要在前几章过早完成全部目标
-- 严格按逐章提示生成对应章节，不得忽略或替换用户指定的内容
+${outlineMode === 'auto'
+    ? `- 自动模式必须完整覆盖用户给出的主要内容，并合理拆成连续递进的章节
+- 每章summary都要写出具体事件和状态变化，不能只写气氛、日常或泛泛铺垫
+- 不得在前几章过早写完全部内容，也不得到最后一章才突然集中完成；最后一章应形成阶段结果并留下余波
+- 优先级：本批主要内容 > 已有情节规划和模型自由发挥`
+    : `- 手动模式必须逐章严格对应用户提示，每一章的标题和summary都要体现该章指定事件
+- 可以补充必要的衔接、动机与后果，但不得改变用户为该章指定的核心内容
+- 优先级：逐章内容提示 > 已有情节规划和模型自由发挥`}
 - 章节间要有因果关系
 - 生成第${startChapter}-${startChapter + chapterCount - 1}章时，必须承接“前置5章大纲”；如果存在“后续3章大纲”，只能用于节奏衔接和伏笔预留，不得提前完成后续章节核心事件
 ${nsfwOutlineRules}
@@ -528,7 +545,7 @@ ${nsfwOutlineRules}
     })
 
   const text = response.choices[0]?.message?.content || ''
-  saveAiDebugResponse('outline-raw', text, { storyId, startChapter, chapterCount, model: MODEL })
+  saveAiDebugResponse('outline-raw', text, { storyId, startChapter, chapterCount, model })
   let chapters_arr: GeneratedOutline['chapters']
   try {
     chapters_arr = ensureRequestedOutlineRange(parseOutlineResponse(text, startChapter, chapterCount, isNsfw), startChapter, chapterCount)
@@ -593,14 +610,24 @@ export async function generateChapter(
     ? `第${previousChapter.chapter_number}章 ${previousChapter.title}\n${String(previousChapter.content).slice(0, 2500)}...`
     : ''
 
-  const response = await client.chat.completions.create({
-    model: MODEL,
+  const { model } = getLlmConfig()
+  const response = await getOpenAIClient().chat.completions.create({
+    model,
     max_tokens: 8000,
     temperature: 0.85,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: `你是一位专业的${story.genre}小说作者，擅长创作${story.genre}类小说。
 
+${options.batchContent ? `## 自动模式的本批主要内容
+这是当前章节所属批次的主要内容：
+
+<batch_content>
+${options.batchContent}
+</batch_content>
+
+当前章必须完成相邻章节大纲分配给它的内容，并让人物、关系、信息或局势产生明确变化；不得偏离这批主要内容，也不得提前完成后续章节负责的事件。
+` : ''}
 ## 写作要求
 - 使用中文写作
 - 遵循故事设定中的世界观和角色性格
@@ -637,6 +664,7 @@ ${outlineWindow || '（暂无相邻章节大纲）'}
 使用规则：
 - 如果提供了上一章正文，必须自然承接其中已经发生的因果、人物状态和场景余波，不得重复演一遍；如果没有上一章正文，则忽略该项
 - 当前章节必须完成其概要中的核心事件
+- 若提供了本批主要内容，正文中的关键事件和章节结束状态必须与其保持一致
 - 后续章节只用于提前埋伏笔、控制节奏和保留人物动机，不得提前完成其核心事件或直接剧透
 - 若正文历史与计划大纲冲突，以已经写成的正文为准，并尽量平滑衔接后续计划
 
@@ -938,6 +966,19 @@ function buildStoryContext(
   characters: any[],
   options: GenerateOptions
 ): string {
+  const focusNames = new Set(
+    (options.focusCharacters || []).map(name => String(name).trim().toLocaleLowerCase()).filter(Boolean)
+  )
+  const isFocused = (character: any) => focusNames.has(String(character.name || '').trim().toLocaleLowerCase())
+  const importanceRank: Record<string, number> = { high: 0, medium: 1, low: 2 }
+  const orderedCharacters = [...characters].sort((left, right) => {
+    const focusDifference = Number(isFocused(right)) - Number(isFocused(left))
+    if (focusDifference !== 0) return focusDifference
+    const importanceDifference = (importanceRank[left.importance] ?? 1) - (importanceRank[right.importance] ?? 1)
+    if (importanceDifference !== 0) return importanceDifference
+    return String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN')
+  })
+
   let ctx = ''
   ctx += `标题: ${story.title}\n`
   ctx += `类型: ${story.genre}${story.sub_genre ? ' / ' + story.sub_genre : ''}\n`
@@ -947,24 +988,36 @@ function buildStoryContext(
   if (story.synopsis) ctx += `\n梗概: ${story.synopsis}\n`
   if (story.tone_style) ctx += `\n基调: ${story.tone_style}\n`
 
-  if (characters.length > 0) {
-    ctx += `\n## 角色列表\n`
-    for (const ch of characters) {
+  if (focusNames.size > 0) {
+    ctx += `\n## 本章焦点角色\n${options.focusCharacters!.join(', ')}\n`
+    ctx += `规则：优先展开焦点角色的行动、心理和关系变化；其他角色只在剧情确有需要时出场。\n`
+  }
+
+  if (orderedCharacters.length > 0) {
+    ctx += `\n## 角色档案\n`
+    for (const ch of orderedCharacters) {
+      const detailed = isFocused(ch) || ch.importance === 'high'
       ctx += `- ${ch.name} (${ch.role}${ch.importance ? ` / ${ch.importance}` : ''})`
+      if (isFocused(ch)) ctx += ` | 本章焦点`
+      if (ch.status) ctx += ` | 状态: ${ch.status}`
       if (ch.gender) ctx += ` | 性别: ${ch.gender}`
       if (ch.age) ctx += ` | 年龄: ${ch.age}`
       if (ch.tags) {
         try { ctx += ` | 标签: ${JSON.parse(ch.tags).join(', ')}` } catch {}
       }
-      if (ch.personality) ctx += ` | 性格: ${ch.personality.slice(0, 100)}`
+      if (detailed && ch.appearance) ctx += ` | 外貌: ${String(ch.appearance).slice(0, 140)}`
+      if (ch.personality) ctx += ` | 性格: ${String(ch.personality).slice(0, detailed ? 180 : 100)}`
+      if (detailed && ch.background) ctx += ` | 背景: ${String(ch.background).slice(0, 220)}`
       if (ch.current_goal) ctx += ` | 当前目标: ${String(ch.current_goal).slice(0, 120)}`
       if (ch.core_conflict) ctx += ` | 核心矛盾: ${String(ch.core_conflict).slice(0, 120)}`
       if (ch.character_arc) ctx += ` | 成长弧线: ${String(ch.character_arc).slice(0, 120)}`
-      if (ch.voice_style) ctx += ` | 说话风格: ${String(ch.voice_style).slice(0, 100)}`
       if (ch.relation_to_plot) ctx += ` | 主线关系: ${String(ch.relation_to_plot).slice(0, 100)}`
-      if (ch.writing_notes) ctx += ` | 写作注意: ${String(ch.writing_notes).slice(0, 160)}`
+      if (detailed && ch.voice_style) ctx += ` | 说话风格: ${String(ch.voice_style).slice(0, 120)}`
+      if (detailed && ch.secrets) ctx += ` | 幕后秘密: ${String(ch.secrets).slice(0, 160)}（除非剧情已到揭示节点，否则不得让无关角色知晓或直接写明）`
+      if (detailed && ch.writing_notes) ctx += ` | 写作注意: ${String(ch.writing_notes).slice(0, 180)}`
       ctx += '\n'
     }
+    ctx += `规则：外貌、背景和说话风格要保持一致；成长弧线应渐进发生，不能为了单章情节让角色突然改变立场或能力。\n`
   }
 
   if (story.id && characters.length > 1) {
@@ -978,8 +1031,15 @@ function buildStoryContext(
       ORDER BY cr.created_at ASC
     `).all(story.id) as any[]
     if (relationships.length > 0) {
+      const orderedRelationships = [...relationships].sort((left, right) => {
+        const leftRelevant = focusNames.has(String(left.source_name || '').trim().toLocaleLowerCase())
+          || focusNames.has(String(left.target_name || '').trim().toLocaleLowerCase())
+        const rightRelevant = focusNames.has(String(right.source_name || '').trim().toLocaleLowerCase())
+          || focusNames.has(String(right.target_name || '').trim().toLocaleLowerCase())
+        return Number(rightRelevant) - Number(leftRelevant)
+      })
       ctx += `\n## 人物关系约束\n`
-      for (const rel of relationships.slice(0, 30)) {
+      for (const rel of orderedRelationships.slice(0, 30)) {
         const publicState = Number(rel.is_public) === 0 ? '隐秘' : '公开'
         ctx += `- ${rel.source_name || rel.source_id} → ${rel.target_name || rel.target_id}: ${rel.rel_type}`
         ctx += ` | 亲密${rel.intimacy_level || 0}/信任${rel.trust_level || 0}/冲突${rel.conflict_level || 0}`
@@ -992,10 +1052,6 @@ function buildStoryContext(
       }
       ctx += `规则：角色行动、对话和情绪必须符合当前关系状态；高冲突关系不要突然和解，低信任关系不要无条件交底，隐秘关系不要被无关角色直接知晓。\n`
     }
-  }
-
-  if (options.focusCharacters && options.focusCharacters.length > 0) {
-    ctx += `\n## 本章焦点角色\n${options.focusCharacters.join(', ')}\n`
   }
 
   if (options.sceneType) {

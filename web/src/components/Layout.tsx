@@ -28,6 +28,9 @@ export function Layout() {
           <NavLink to="/" end className={linkClass}>
             <Icon name="home" /> 工作台
           </NavLink>
+          <NavLink to="/settings" className={linkClass}>
+            <Icon name="settings" /> 应用设置
+          </NavLink>
 
           {inStory && (
             <>
@@ -62,7 +65,7 @@ export function Layout() {
         </nav>
 
         <div className="p-3 border-t border-border text-[11px] text-text-muted text-center">
-          Hnovel v1.2
+          Hnovel v1.3
         </div>
       </aside>
 

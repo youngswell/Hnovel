@@ -7,6 +7,10 @@ interface WritePageState {
   outlineChapters: OutlineChapter[]
   generatedChapters: Set<number>
   generatedChapter: GeneratedChapter | null
+  generating: boolean
+  writingIndex: number
+  batchGenerating: boolean
+  batchProgress: { current: number; total: number }
 
   // Config
   chapterCount: number
@@ -15,7 +19,8 @@ interface WritePageState {
   minWords: number
   maxWords: number
   focusCharacters: string
-  outlineDirection: string
+  outlineMode: 'auto' | 'manual'
+  batchContent: string
   chapterPrompts: Record<number, string>
 
   // Actions
@@ -24,7 +29,11 @@ interface WritePageState {
   setOutlineChapters: (chapters: OutlineChapter[]) => void
   addGeneratedChapter: (num: number) => void
   setGeneratedChapter: (ch: GeneratedChapter | null) => void
-  setConfig: (config: Partial<Pick<WritePageState, 'chapterCount' | 'intensityLevel' | 'explicitLevel' | 'minWords' | 'maxWords' | 'focusCharacters' | 'outlineDirection' | 'chapterPrompts'>>) => void
+  setGenerating: (generating: boolean) => void
+  setWritingIndex: (index: number) => void
+  setBatchGenerating: (generating: boolean) => void
+  setBatchProgress: (progress: { current: number; total: number }) => void
+  setConfig: (config: Partial<Pick<WritePageState, 'chapterCount' | 'intensityLevel' | 'explicitLevel' | 'minWords' | 'maxWords' | 'focusCharacters' | 'outlineMode' | 'batchContent' | 'chapterPrompts'>>) => void
   setChapterPrompt: (num: number, prompt: string) => void
   updateChapter: (num: number, updates: Partial<Pick<OutlineChapter, 'title' | 'summary' | 'nsfw'>>) => void
   deleteChapter: (num: number) => void
@@ -38,13 +47,18 @@ const initialState = {
   outlineChapters: [] as OutlineChapter[],
   generatedChapters: new Set<number>(),
   generatedChapter: null as GeneratedChapter | null,
+  generating: false,
+  writingIndex: -1,
+  batchGenerating: false,
+  batchProgress: { current: 0, total: 0 },
   chapterCount: 5,
   intensityLevel: 5,
   explicitLevel: 'moderate',
   minWords: 2000,
   maxWords: 5000,
   focusCharacters: '',
-  outlineDirection: '',
+  outlineMode: 'auto' as const,
+  batchContent: '',
   chapterPrompts: {} as Record<number, string>,
 }
 
@@ -58,6 +72,10 @@ export const useWriteStore = create<WritePageState>((set) => ({
   setOutlineChapters: (chapters) => set({ outlineChapters: chapters, generatedChapters: new Set(), generatedChapter: null }),
   addGeneratedChapter: (num) => set((s) => ({ generatedChapters: new Set(s.generatedChapters).add(num) })),
   setGeneratedChapter: (ch) => set({ generatedChapter: ch }),
+  setGenerating: (generating) => set({ generating }),
+  setWritingIndex: (writingIndex) => set({ writingIndex }),
+  setBatchGenerating: (batchGenerating) => set({ batchGenerating }),
+  setBatchProgress: (batchProgress) => set({ batchProgress }),
   setConfig: (config) => set(config),
   setChapterPrompt: (num, prompt) => set((s) => ({
     chapterPrompts: { ...s.chapterPrompts, [num]: prompt },

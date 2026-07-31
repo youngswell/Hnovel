@@ -1,21 +1,21 @@
 import express from 'express'
-import cors from 'cors'
 import dotenv from 'dotenv'
 import fs from 'fs'
 import path from 'path'
-import OpenAI from 'openai'
 import { storyRouter } from './routes/stories.js'
 import { chapterRouter } from './routes/chapters.js'
 import { characterRouter } from './routes/characters.js'
 import { exportRouter } from './routes/export.js'
 import { planningRouter } from './routes/planning.js'
+import { settingsRouter } from './routes/settings.js'
 import { initDatabase } from './db/index.js'
 import { errorHandler, notFoundHandler } from './middleware/errors.js'
+import { getLlmConfig, testLlmConfig } from './config/llm.js'
 
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 4000
+const PORT = Number(process.env.PORT || 4000)
 const WEB_DIST_DIR = path.resolve(process.cwd(), '..', 'web', 'dist')
 
 // Long timeout for AI generation endpoints
@@ -24,7 +24,6 @@ app.use((_req, res, next) => {
   next()
 })
 
-app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 
 // API Routes
@@ -33,6 +32,7 @@ app.use('/api/stories', chapterRouter)
 app.use('/api/stories', characterRouter)
 app.use('/api/stories', exportRouter)
 app.use('/api/stories', planningRouter)
+app.use('/api/settings', settingsRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -40,41 +40,16 @@ app.get('/api/health', (_req, res) => {
 })
 
 app.get('/api/health/llm', async (_req, res) => {
-  const apiKey = process.env.LLM_API_KEY || ''
-  const baseURL = process.env.LLM_BASE_URL || 'https://opencode.ai/zen/go/v1'
-  const model = process.env.LLM_MODEL || 'deepseek-v4-flash'
-
-  if (!apiKey) {
-    return res.status(400).json({
-      ok: false,
-      configured: false,
-      baseURL,
-      model,
-      error: 'LLM_API_KEY is not configured',
-    })
-  }
-
+  const config = getLlmConfig()
+  if (!config.apiKey) return res.status(400).json(await testLlmConfig(config))
   try {
-    const client = new OpenAI({ apiKey, baseURL })
-    const response = await client.chat.completions.create({
-      model,
-      max_tokens: 8,
-      temperature: 0,
-      messages: [{ role: 'user', content: 'Reply with OK.' }],
-    })
-    res.json({
-      ok: true,
-      configured: true,
-      baseURL,
-      model,
-      sample: response.choices[0]?.message?.content || '',
-    })
+    res.json(await testLlmConfig(config))
   } catch (error) {
     res.status(502).json({
       ok: false,
       configured: true,
-      baseURL,
-      model,
+      baseURL: config.baseURL,
+      model: config.model,
       error: error instanceof Error ? error.message : String(error),
     })
   }
@@ -93,8 +68,8 @@ app.use(errorHandler)
 // Initialize database and start server
 initDatabase()
 
-app.listen(PORT, () => {
-  console.log(`[Hnovel Server] Running on http://localhost:${PORT}`)
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`[Hnovel Server] Running on http://127.0.0.1:${PORT}`)
 })
 
 export default app

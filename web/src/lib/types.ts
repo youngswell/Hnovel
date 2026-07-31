@@ -94,7 +94,8 @@ export interface GenerateOptions {
   minWords?: number
   maxWords?: number
   additionalInstructions?: string
-  outlineDirection?: string
+  outlineMode?: 'auto' | 'manual'
+  batchContent?: string
   referenceStyle?: string
   styleProfile?: string
   chapterCount?: number

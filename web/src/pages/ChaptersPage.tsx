@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { deleteChapter, fetchChapters, getApiErrorMessage, saveChapter } from '../lib/api'
+import { deleteChapter, fetchChapters, getApiErrorMessage, renumberChapter, saveChapter } from '../lib/api'
 import { Icon } from '../components/Icon'
 import type { Chapter } from '../lib/types'
 
@@ -10,7 +10,8 @@ export function ChaptersPage() {
   const queryClient = useQueryClient()
   const [exportFrom, setExportFrom] = useState('')
   const [exportTo, setExportTo] = useState('')
-  const [editingTitleNum, setEditingTitleNum] = useState<number | null>(null)
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null)
+  const [editingNumber, setEditingNumber] = useState('')
   const [editingTitle, setEditingTitle] = useState('')
   const { data: chapters, isLoading } = useQuery({
     queryKey: ['chapters', id], queryFn: () => fetchChapters(id!), enabled: !!id,
@@ -25,17 +26,30 @@ export function ChaptersPage() {
     },
     onError: error => alert('删除章节失败: ' + getApiErrorMessage(error)),
   })
-  const renameMutation = useMutation({
-    mutationFn: (chapter: Chapter) => saveChapter(id!, chapter.chapter_number, { ...chapter, title: editingTitle.trim() }),
-    onSuccess: (chapter) => {
-      setEditingTitleNum(null)
+  const editMutation = useMutation({
+    mutationFn: async (chapter: Chapter) => {
+      const nextNumber = Number(editingNumber)
+      let updated = chapter
+      if (nextNumber !== chapter.chapter_number) {
+        updated = await renumberChapter(id!, chapter.chapter_number, nextNumber)
+      }
+      if (editingTitle.trim() !== chapter.title) {
+        updated = await saveChapter(id!, nextNumber, { ...updated, title: editingTitle.trim() })
+      }
+      return { chapter: updated, oldNumber: chapter.chapter_number }
+    },
+    onSuccess: ({ chapter, oldNumber }) => {
+      setEditingChapterId(null)
+      setEditingNumber('')
       setEditingTitle('')
+      queryClient.removeQueries({ queryKey: ['chapter', id, String(oldNumber)] })
       queryClient.setQueryData(['chapter', id, String(chapter.chapter_number)], chapter)
       queryClient.invalidateQueries({ queryKey: ['chapters', id] })
+      queryClient.invalidateQueries({ queryKey: ['outline', id] })
       queryClient.invalidateQueries({ queryKey: ['story', id] })
       queryClient.invalidateQueries({ queryKey: ['stories'] })
     },
-    onError: error => alert('修改章节标题失败: ' + getApiErrorMessage(error)),
+    onError: error => alert('修改章节失败: ' + getApiErrorMessage(error)),
   })
 
   const handleDelete = (num: number, title: string) => {
@@ -44,24 +58,35 @@ export function ChaptersPage() {
     }
   }
   const startRename = (chapter: Chapter) => {
-    setEditingTitleNum(chapter.chapter_number)
+    setEditingChapterId(chapter.id)
+    setEditingNumber(String(chapter.chapter_number))
     setEditingTitle(chapter.title)
   }
   const cancelRename = () => {
-    setEditingTitleNum(null)
+    setEditingChapterId(null)
+    setEditingNumber('')
     setEditingTitle('')
   }
   const saveRename = (chapter: Chapter) => {
+    const chapterNumber = Number(editingNumber)
+    if (!Number.isInteger(chapterNumber) || chapterNumber < 1) {
+      alert('章节号必须是正整数')
+      return
+    }
+    if (chapters?.some(item => item.id !== chapter.id && item.chapter_number === chapterNumber)) {
+      alert(`第${chapterNumber}章已经存在，请换一个章节号`)
+      return
+    }
     const title = editingTitle.trim()
     if (!title) {
       alert('章节标题不能为空')
       return
     }
-    if (title === chapter.title) {
+    if (title === chapter.title && chapterNumber === chapter.chapter_number) {
       cancelRename()
       return
     }
-    renameMutation.mutate(chapter)
+    editMutation.mutate(chapter)
   }
   const exportQuery = useMemo(() => {
     const params = new URLSearchParams()
@@ -148,20 +173,38 @@ export function ChaptersPage() {
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <span className="text-sm font-mono text-text-muted bg-bg-dark px-3 py-1.5 rounded-lg border border-border">Ch.{ch.chapter_number}</span>
                 <div className="min-w-0">
-                  {editingTitleNum === ch.chapter_number ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        value={editingTitle}
-                        autoFocus
-                        onChange={e => setEditingTitle(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') saveRename(ch)
-                          if (e.key === 'Escape') cancelRename()
-                        }}
-                        className="w-full max-w-md px-3 py-1.5 bg-bg-dark border border-primary/40 rounded-lg text-sm font-medium text-text-primary focus:border-primary focus:outline-none"
-                      />
+                  {editingChapterId === ch.id ? (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="block">
+                        <span className="block text-[10px] text-text-muted mb-1">章节号</span>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={editingNumber}
+                          autoFocus
+                          onChange={e => setEditingNumber(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') saveRename(ch)
+                            if (e.key === 'Escape') cancelRename()
+                          }}
+                          className="w-24 px-3 py-1.5 bg-bg-dark border border-primary/40 rounded-lg text-sm font-mono text-text-primary focus:border-primary focus:outline-none"
+                        />
+                      </label>
+                      <label className="block flex-1 min-w-48">
+                        <span className="block text-[10px] text-text-muted mb-1">章节标题</span>
+                        <input
+                          value={editingTitle}
+                          onChange={e => setEditingTitle(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') saveRename(ch)
+                            if (e.key === 'Escape') cancelRename()
+                          }}
+                          className="w-full max-w-md px-3 py-1.5 bg-bg-dark border border-primary/40 rounded-lg text-sm font-medium text-text-primary focus:border-primary focus:outline-none"
+                        />
+                      </label>
                       <button type="button" onClick={() => saveRename(ch)}
-                        disabled={renameMutation.isPending && renameMutation.variables?.chapter_number === ch.chapter_number}
+                        disabled={editMutation.isPending && editMutation.variables?.id === ch.id}
                         className="px-2.5 py-1.5 bg-primary text-white rounded-lg text-xs font-medium disabled:opacity-40">
                         保存
                       </button>

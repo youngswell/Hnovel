@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchChapter, saveChapter, generateChapter } from '../lib/api'
 import { Icon } from '../components/Icon'
+import { ModalPortal } from '../components/ModalPortal'
 
 export function ChapterEditPage() {
   const { id, num } = useParams<{ id: string; num: string }>()
@@ -94,8 +95,8 @@ export function ChapterEditPage() {
 
       {/* AI Rewrite Modal */}
       {showRewrite && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 modal-enter">
-          <div className="bg-bg-card border border-border rounded-2xl p-6 w-full max-w-lg shadow-xl">
+        <ModalPortal>
+          <div className="bg-bg-card border border-border rounded-2xl p-6 w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold">AI重写第{num}章</h3>
               <button type="button" onClick={() => setShowRewrite(false)} className="text-text-muted hover:text-text-primary">
@@ -129,7 +130,7 @@ export function ChapterEditPage() {
                 className="px-5 py-2.5 border border-border hover:bg-bg-dark text-text-secondary rounded-xl text-sm transition-all">取消</button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       <div className="bg-bg-card border border-border rounded-2xl shadow-sm overflow-hidden">

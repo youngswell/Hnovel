@@ -5,7 +5,7 @@ cd /d "%~dp0"
 
 echo.
 echo ========================================
-echo   Hnovel - AI Novel Writing Workspace
+echo   Hnovel - AI Novel Writing Workspace:3
 echo ========================================
 echo.
 
