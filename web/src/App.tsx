@@ -1,5 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import pkg from '../package.json'
 import { Layout } from './components/Layout'
 import { HomePage } from './pages/HomePage'
 import { StoryPage } from './pages/StoryPage'
@@ -20,10 +22,35 @@ const queryClient = new QueryClient({
   },
 })
 
+function resolveTitle(pathname: string): string {
+  if (pathname === '/') return '工作台'
+  if (pathname === '/scrape') return '文章抓取'
+  if (pathname === '/settings') return '应用设置'
+  if (/^\/story\/[^/]+\/write/.test(pathname)) return 'AI写作'
+  if (/^\/story\/[^/]+\/chapters\/\d+/.test(pathname)) return '章节编辑'
+  if (/^\/story\/[^/]+\/chapters/.test(pathname)) return '章节列表'
+  if (/^\/story\/[^/]+\/characters\/[^/]+/.test(pathname)) return '角色详情'
+  if (/^\/story\/[^/]+\/characters/.test(pathname)) return '角色管理'
+  if (/^\/story\/[^/]+\/bible/.test(pathname)) return '故事圣经'
+  if (/^\/story\/[^/]+\/world/.test(pathname)) return '世界观'
+  if (/^\/story\/[^/]+\/plot/.test(pathname)) return '情节管理'
+  if (/^\/story\/[^/]+/.test(pathname)) return '故事仪表盘'
+  return '工作台'
+}
+
+function RouteTitleSetter() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    document.title = `${pkg.name} - ${resolveTitle(pathname)}`
+  }, [pathname])
+  return null
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <RouteTitleSetter />
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />

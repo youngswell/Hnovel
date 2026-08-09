@@ -24,8 +24,16 @@ if not exist "server\node_modules" (
 )
 
 if not exist "web\node_modules" (
-  echo [3/3] Installing web dependencies...
+  echo [3/4] Installing web dependencies...
   pushd web
+  call npm install
+  if errorlevel 1 goto error
+  popd
+)
+
+if not exist "reader\node_modules" (
+  echo [4/4] Installing reader dependencies...
+  pushd reader
   call npm install
   if errorlevel 1 goto error
   popd
@@ -39,7 +47,7 @@ if not exist "server\.env" (
 )
 
 echo Starting development server...
-echo Frontend: http://localhost:3000
+echo Frontend: http://localhost:3000  (工作台 /，阅读器 /reader)
 echo Backend:  http://localhost:4000
 echo.
 call npm run app

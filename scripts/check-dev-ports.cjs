@@ -2,6 +2,7 @@ const net = require('node:net')
 
 const ports = [
   { port: Number(process.env.WEB_PORT || 3000), name: '前端' },
+  { port: Number(process.env.READER_PORT || 3100), name: '阅读器' },
   { port: Number(process.env.PORT || 4000), name: '后端' },
 ]
 

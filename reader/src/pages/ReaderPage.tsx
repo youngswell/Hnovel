@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import pkg from '../../package.json'
 import { fetchChapter, fetchChapters, fetchStory, getApiErrorMessage } from '../lib/api'
 import type { Chapter, Story } from '../lib/types'
 import {
@@ -137,6 +138,11 @@ export default function ReaderPage() {
     mq.addEventListener('change', apply)
     return () => mq.removeEventListener('change', apply)
   }, [settings.theme])
+
+  // 浏览器页签标题
+  useEffect(() => {
+    document.title = `${pkg.name} - ${story ? story.title : '阅读'}`
+  }, [story?.title])
 
   // 卸载时冲刷待保存的进度
   useEffect(() => {

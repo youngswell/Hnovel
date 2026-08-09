@@ -51,6 +51,11 @@ export function StoryPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <a href={`/reader/${id}`} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all font-medium text-sm shadow-md shadow-primary/20"
+              title="在阅读器中阅读">
+              <Icon name="book" className="w-4 h-4" /> 去阅读
+            </a>
             <button
               type="button"
               onClick={() => setShowAnalyze(true)}

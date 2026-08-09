@@ -23,7 +23,13 @@ WORKDIR /app/web
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
-
+# 2.5) 构建阅读器（移动端，React + Vite，独立子项目 reader/）
+WORKDIR /app
+COPY reader/package.json reader/package-lock.json reader/
+WORKDIR /app/reader
+RUN npm ci --no-audit --no-fund
+COPY reader/ ./
+RUN npm run build
 # 3) 构建后端（Express + TypeScript）
 WORKDIR /app
 COPY server/package.json server/package-lock.json server/
@@ -53,6 +59,8 @@ COPY --from=builder /app/server/node_modules ./server/node_modules
 COPY --from=builder /app/server/dist ./server/dist
 # 前端静态产物，由后端 Express 统一托管（index.ts 会按 cwd 相对路径找 ../web/dist）
 COPY --from=builder /app/web/dist ./web/dist
+# 阅读器静态产物，同样由后端 Express 统一托管（index.ts 按 cwd 相对路径找 ../reader/dist）
+COPY --from=builder /app/reader/dist ./reader/dist
 
 # 创作数据（SQLite、章节、角色、app-settings.json 等）全部放在持久化卷 /data
 VOLUME /data

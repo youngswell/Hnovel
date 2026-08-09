@@ -151,11 +151,18 @@ export function HomePage() {
                 <div className="h-full bg-primary rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(100, Math.max(2, story.chapter_count * 5))}%` }} />
               </div>
-              <button type="button" aria-label="删除故事"
-                onClick={e => { e.stopPropagation(); if (confirm(`确认删除「${story.title}」？`)) deleteMutation.mutate(story.id) }}
-                className="mt-3 text-text-muted hover:text-danger transition-colors opacity-0 group-hover:opacity-100 text-xs">
-                删除故事
-              </button>
+              <div className="mt-3 flex items-center justify-between">
+                <a href={`/reader/${story.id}`} target="_blank" rel="noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary-dark font-medium transition-colors">
+                  <Icon name="book" className="w-3.5 h-3.5" /> 去阅读
+                </a>
+                <button type="button" aria-label="删除故事"
+                  onClick={e => { e.stopPropagation(); if (confirm(`确认删除「${story.title}」？`)) deleteMutation.mutate(story.id) }}
+                  className="text-text-muted hover:text-danger transition-colors opacity-0 group-hover:opacity-100 text-xs">
+                  删除故事
+                </button>
+              </div>
             </div>
           ))}
         </div>

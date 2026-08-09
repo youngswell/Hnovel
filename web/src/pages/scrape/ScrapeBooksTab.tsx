@@ -145,6 +145,17 @@ export function ScrapeBooksTab() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
+                      {book.story_id && (
+                        <a
+                          href={`/reader/${book.story_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1.5 rounded-lg text-xs bg-primary text-white font-medium hover:bg-primary-dark transition-colors"
+                          title="在阅读器中阅读"
+                        >
+                          阅读
+                        </a>
+                      )}
                       <button
                         onClick={() => scanMutation.mutate(book.id)}
                         disabled={book.status === 'scraping'}

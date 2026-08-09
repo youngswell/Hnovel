@@ -1,8 +1,9 @@
 {
-  "name": "web",
+  "name": "写作助手",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "基于hnovel的AI长篇小说写作工作台",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

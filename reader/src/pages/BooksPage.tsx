@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import pkg from '../../package.json'
 import { fetchStories, getApiErrorMessage } from '../lib/api'
 import type { Story } from '../lib/types'
 import { getLastStoryId, loadProgress } from '../lib/readerStore'
@@ -41,6 +42,10 @@ export default function BooksPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastStoryId] = useState(() => getLastStoryId())
+
+  useEffect(() => {
+    document.title = `${pkg.name} - 书架`
+  }, [])
 
   async function load() {
     setLoading(true)
