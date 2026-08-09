@@ -116,6 +116,33 @@ sudo docker compose up -d --build
 
 ## 6. 日常维护
 
+### 从 git 一键部署 / 定时自动部署（推荐）
+> 适用：群晖上是通过 `git clone` 得到的完整仓库。配套脚本 `scripts/deploy-synology.sh` 已提供（纯 docker 命令，无需 compose 插件）。
+
+**配置步骤**：
+1. 把 `scripts/deploy-synology.sh` 上传到群晖 `/volume1/web_packages/docker/hnovel/scripts/`，右键属性确认有执行权限（或 SSH `chmod +x`）。
+2. 群晖「控制面板 → 任务计划 → 新增 → 计划的任务 → 自定义脚本」：
+   - 常规：用户选 `root`（执行 docker 需要）。
+   - 计划：二选一
+     - **手动运行** → 以后发布后点「运行」= 一键部署。
+     - **按计划运行**（如每 5 分钟）→ git push 后自动部署，无需公网 webhook。
+   - 任务设置 → 运行命令：
+     ```
+     bash /volume1/web_packages/docker/hnovel/scripts/deploy-synology.sh
+     ```
+
+**脚本行为**：
+- `git fetch` 对比本地/远程提交，无新提交则跳过（定时轮询不浪费）。
+- 有更新 → `git pull --ff-only` → `docker build`（带 `BASE_IMAGE` 国内代理）→ 重建容器。
+- 端口 8888、挂载 `./data` 与 `docker-compose.yml` 保持一致；数据不受影响。
+
+> 说明：脚本里 `docker run` 的参数需与 `docker-compose.yml` 保持同步。若装了 docker compose 插件，也可改用 `docker compose build --pull && docker compose up -d --force-recreate`（配置单一来源，更省心）。
+
+**想要 git push 后即时触发（webhook）**：
+- 云端仓库（GitHub/Gitee）的 webhook 需要群晖有公网地址或内网穿透，内网部署一般不具备，不推荐。
+- 若用内网自建 Gitea/GitLab，可配 webhook 指向群晖触发部署（需额外跑一个 webhook 监听服务）。
+- **内网场景推荐直接用上面的「按计划运行」定时轮询**，效果接近自动部署且零额外服务。
+
 ### 查看日志
 ```bash
 docker logs -f hnovel
