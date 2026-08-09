@@ -10,6 +10,7 @@ import { planningRouter } from './routes/planning.js'
 import { settingsRouter } from './routes/settings.js'
 import { scrapeRouter } from './routes/scrape.js'
 import { importRouter } from './routes/import.js'
+import { analyzeRouter } from './routes/analyze.js'
 import { initDatabase } from './db/index.js'
 import { errorHandler, notFoundHandler } from './middleware/errors.js'
 import { getLlmConfig, testLlmConfig } from './config/llm.js'
@@ -19,6 +20,7 @@ dotenv.config()
 
 const app = express()
 const PORT = Number(process.env.PORT || 4000)
+const HOST = process.env.HOST || '0.0.0.0'
 const WEB_DIST_DIR = path.resolve(process.cwd(), '..', 'web', 'dist')
 
 // Long timeout for AI generation endpoints
@@ -38,6 +40,7 @@ app.use('/api/stories', planningRouter)
 app.use('/api/settings', settingsRouter)
 app.use('/api/scrape', scrapeRouter)
 app.use('/api/import', importRouter)
+app.use('/api/stories', analyzeRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -74,8 +77,8 @@ app.use(errorHandler)
 initDatabase()
 recoverInterruptedTasks()
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`[Hnovel Server] Running on http://127.0.0.1:${PORT}`)
+app.listen(PORT, HOST, () => {
+  console.log(`[Hnovel Server] Running on http://${HOST}:${PORT}`)
 })
 
 export default app

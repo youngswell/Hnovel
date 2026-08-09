@@ -1,10 +1,13 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { fetchStory, fetchChapters } from '../lib/api'
 import { Icon } from '../components/Icon'
+import { AnalyzeStoryModal } from '../components/AnalyzeStoryModal'
 
 export function StoryPage() {
   const { id } = useParams<{ id: string }>()
+  const [showAnalyze, setShowAnalyze] = useState(false)
   const { data: story, isLoading } = useQuery({
     queryKey: ['story', id],
     queryFn: () => fetchStory(id!),
@@ -47,13 +50,32 @@ export function StoryPage() {
               </span>
             </div>
           </div>
-          <Link to={`/story/${id}/write`}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all font-medium text-sm shadow-md shadow-primary/20">
-            <Icon name="sparkle" className="w-4 h-4" /> AI写作
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowAnalyze(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 border border-border hover:bg-bg-card text-text-secondary hover:text-text-primary rounded-xl transition-all font-medium text-sm"
+              title="通读已有章节，反向整理出故事圣经、角色、世界观与情节资料，便于续写"
+            >
+              <Icon name="compass" className="w-4 h-4" /> 逆向整理
+            </button>
+            <Link to={`/story/${id}/write`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all font-medium text-sm shadow-md shadow-primary/20">
+              <Icon name="sparkle" className="w-4 h-4" /> AI写作
+            </Link>
+          </div>
         </div>
         {story.synopsis && <p className="text-text-secondary text-sm leading-relaxed">{story.synopsis}</p>}
       </div>
+
+      {showAnalyze && (
+        <AnalyzeStoryModal
+          storyId={id!}
+          storyTitle={story.title}
+          chapterCount={story.chapter_count || 0}
+          onClose={() => setShowAnalyze(false)}
+        />
+      )}
 
       <div className="grid grid-cols-4 gap-3 mb-6">
         {[

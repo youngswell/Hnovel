@@ -263,3 +263,29 @@ export interface EpubImportResult {
   first: { number: number; title: string } | null
   last: { number: number; title: string } | null
 }
+
+// ---------- 逆向整理 ----------
+
+export type AnalyzeCategory = 'bible' | 'characters' | 'world' | 'plot'
+
+export interface StoryAnalysisResult {
+  story_id: string
+  counts: {
+    characters: { created: number; updated: number }
+    worldItems: { created: number; updated: number }
+    arcs: { created: number; updated: number }
+    events: { created: number; updated: number }
+    foreshadows: { created: number; updated: number }
+  }
+  bible: {
+    coreSetting: string
+    tone: string
+    themes: string[]
+    worldSummary: string
+    currentStatus: string
+    styleNotes: string
+    continuityNotes: string
+  }
+  warnings: string[]
+  status: Record<AnalyzeCategory, { ok: boolean; error: string }>
+}

@@ -1,0 +1,44 @@
+# Hnovel 群晖内网部署（Docker / Container Manager）
+# 用法（SSH 或群晖任务计划）：
+#   docker compose up -d --build
+services:
+  hnovel:
+    build:
+      context: .
+      # 国内网络下载 better-sqlite3 预编译包超时时，取消注释走镜像加速：
+      # args:
+      #   BETTER_SQLITE3_BINARY_HOST: https://npmmirror.com/mirrors/better-sqlite3/
+    image: hnovel:latest
+    container_name: hnovel
+    restart: unless-stopped
+    ports:
+      # 宿主机端口:容器端口；如需改端口，两边一起改
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+      # ---- LLM 配置 ----
+      # 推荐部署后在网页「应用设置」里填写，会保存到 /data/app-settings.json（比 .env 优先）
+      # 如果希望用环境变量配置，取消注释并填写：
+      # LLM_API_KEY: your-api-key
+      # LLM_BASE_URL: https://api.deepseek.com/v1
+      # LLM_MODEL: deepseek-v4-flash
+      # DEBUG_AI_RESPONSE: "false"
+    volumes:
+      # 宿主机 ./data 目录 → 容器内 /data，保存所有创作数据（数据库、章节、角色、设置）
+      # 升级/重建容器时数据不会丢失，请勿删除此目录
+      - ./data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Story, Chapter, EpubImportResult, Foreshadow, GenerateOptions, GeneratedChapter, GeneratedOutline, OutlineChapter, PlotData, ScrapeBook, ScrapePreview, ScrapeSource, ScrapeTask, StoryArc, TimelineEvent, WorldItem, WritingPlan } from './types'
+import type { Story, Chapter, AnalyzeCategory, EpubImportResult, Foreshadow, GenerateOptions, GeneratedChapter, GeneratedOutline, OutlineChapter, PlotData, ScrapeBook, ScrapePreview, ScrapeSource, ScrapeTask, StoryAnalysisResult, StoryArc, TimelineEvent, WorldItem, WritingPlan } from './types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -285,4 +285,10 @@ export async function importEpub(
     },
   })
   return data
+}
+
+// ---------- 逆向整理 ----------
+
+export async function analyzeStory(storyId: string, categories?: AnalyzeCategory[]): Promise<StoryAnalysisResult> {
+  return (await api.post(`/stories/${storyId}/analyze`, categories ? { categories } : {})).data
 }

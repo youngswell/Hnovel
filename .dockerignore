@@ -1,0 +1,28 @@
+# 依赖与构建产物
+**/node_modules
+**/dist
+
+# 本地数据（含 app-settings.json 中的 API Key，禁止打进镜像）
+story-output
+data
+
+# 版本控制
+.git
+.gitignore
+
+# 本地日志与诊断文件
+*.log
+_diag.txt
+_diag2.txt
+
+# 开发辅助文件（构建不需要）
+start-dev.cmd
+scripts
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 部署说明（构建上下文无需携带，如需保留可删除本行）
+DEPLOY-SYNOLOGY.md
+docker-compose.yml

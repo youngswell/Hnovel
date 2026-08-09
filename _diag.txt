@@ -1,0 +1,10 @@
+chapter_count=466
+characters=4 -> 宁梦梦, 香兰, 苏雨瑶, 马良
+world=0
+arcs=0
+events=0
+foreshadows=0
+story.synopsis=空
+story.tone_style=空
+story.themes=[]
+story.style_profile=空
