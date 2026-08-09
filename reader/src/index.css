@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #b8956a;
+  --color-primary-dark: #9a7b52;
+  --color-primary-light: #e8d9c8;
+
+  --color-bg-dark: #f5f2ed;
+  --color-bg-card: #ffffff;
+  --color-text-primary: #2c2416;
+  --color-text-secondary: #6b6258;
+  --color-text-muted: #9c9488;
+  --color-border: #e5e0d8;
+
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+}
+
+/* 阅读主题：通过 body[data-theme] 切换 */
+:root,
+[data-theme='day'] {
+  --reader-bg: #f5f2ed;
+  --reader-text: #2c2416;
+  --reader-text-secondary: #5f564a;
+  --reader-text-muted: #9c9488;
+  --reader-border: #e5e0d8;
+  --reader-accent: #b8956a;
+  --reader-topbar: rgba(0, 0, 0, 0.82);
+}
+
+[data-theme='sepia'] {
+  --reader-bg: #f3ead8;
+  --reader-text: #4a3f2e;
+  --reader-text-secondary: #6f6350;
+  --reader-text-muted: #a2977f;
+  --reader-border: #e0d3bb;
+  --reader-accent: #b8956a;
+  --reader-topbar: rgba(60, 48, 30, 0.86);
+}
+
+[data-theme='night'] {
+  --reader-bg: #111111;
+  --reader-text: #b6b1a8;
+  --reader-text-secondary: #8d887f;
+  --reader-text-muted: #6a665f;
+  --reader-border: #2a2a2a;
+  --reader-accent: #c9a87e;
+  --reader-topbar: rgba(0, 0, 0, 0.9);
+}
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior-y: none;
+}
+
+body {
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-primary);
+  margin: 0;
+  font-family: 'Segoe WPC', 'Segoe UI', 'Microsoft YaHei UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* 阅读正文容器 */
+.reader-content {
+  color: var(--reader-text);
+  font-size: var(--reader-font-size, 19px);
+  line-height: var(--reader-line-height, 1.8);
+}
+
+.reader-content p {
+  margin: 0 0 1.15em;
+  text-indent: 2em;
+  text-align: var(--reader-align, justify);
+}
+
+.reader-content .chapter-title {
+  font-size: 1.55em;
+  font-weight: 700;
+  text-align: center;
+  text-indent: 0;
+  margin: 0.2em 0 1.4em;
+}
+
+.reader-content .reader-empty {
+  color: var(--reader-text-muted);
+  text-align: center;
+  text-indent: 0;
+  padding: 3em 0;
+}
+
+.reader-content.serif {
+  font-family: 'Georgia', 'STSong', 'SimSun', 'Songti SC', 'Noto Serif SC', serif;
+}
+
+@keyframes toc-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
+.animate-toc-in { animation: toc-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-sheet-up { animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -22,6 +22,7 @@ const app = express()
 const PORT = Number(process.env.PORT || 4000)
 const HOST = process.env.HOST || '0.0.0.0'
 const WEB_DIST_DIR = path.resolve(process.cwd(), '..', 'web', 'dist')
+const READER_DIST_DIR = path.resolve(process.cwd(), '..', 'reader', 'dist')
 
 // Long timeout for AI generation endpoints
 app.use((_req, res, next) => {
@@ -62,6 +63,14 @@ app.get('/api/health/llm', async (_req, res) => {
     })
   }
 })
+
+if (fs.existsSync(READER_DIST_DIR)) {
+  // 阅读器（移动端）托管在 /reader 路径，与工作台(/)共用同一端口
+  app.use('/reader', express.static(READER_DIST_DIR))
+  app.get('/reader/{*splat}', (_req, res) => {
+    res.sendFile(path.join(READER_DIST_DIR, 'index.html'))
+  })
+}
 
 if (fs.existsSync(WEB_DIST_DIR)) {
   app.use(express.static(WEB_DIST_DIR))

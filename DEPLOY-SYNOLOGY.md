@@ -130,11 +130,30 @@ docker compose up -d     # 重新拉起
 ```
 
 ### 升级到新版本
+> 关键前提：容器是用**群晖项目目录里的代码**构建的。改完代码后，必须先同步到群晖，再触发重新构建。
+
+1. **同步新代码到群晖**：
+   - 用 git：SSH 进入项目目录执行 `git pull`。
+   - 不用 git：把改动后的文件重新上传覆盖到 `/volume1/web_packages/docker/hnovel/`。
+2. **触发重新构建**（注意：群晖「项目」里的按钮叫「**构建**」，不是「重新构建」）：
+   - Container Manager → 项目 → 选中 `hnovel` → 操作 →「构建」。
+   - **关键行为**：当镜像 `hnovel:latest` 已存在时，「构建」可能**不强制重建**（表现为秒完成、内容没更新）。
+   - **强制更新**：先到「映像」里删除 `hnovel:latest`，再回「项目」点「构建」，必然全量重建。容器不必手动删，构建时会自动替换。
+3. 数据在 `./data`，不受影响。
+
+#### 更可靠的替代：命令行一键发布（推荐长期用）
+装好 docker compose 插件后，用命令行（或做成群晖任务计划）强制构建 + 重建容器：
 ```bash
-# 1. 上传/拉取新代码到项目目录
-# 2. 重新构建（数据在 ./data，不受影响）
-docker compose up -d --build
+cd /volume1/web_packages/docker/hnovel
+docker compose build --pull
+docker compose up -d --force-recreate
 ```
+
+#### 构建了但内容没更新？按顺序排查
+- ❌ 是不是在「容器」页签点的重建/重启？那是用**旧镜像**重建，秒完成、内容不变。→ 必须走「项目」的「构建」。
+- ❌ 镜像还在导致「构建」没强制重建？→ 删除 `hnovel:latest` 镜像后再「构建」。
+- ❌ 群晖上的源码是不是最新的？本地改 ≠ 群晖改，检查 `/volume1/web_packages/docker/hnovel/web/src`、`server/src` 是否含新代码。
+- ✅ 验证：浏览器**强制刷新（Ctrl+F5）**后确认新功能/新页面出现。
 
 ---
 
