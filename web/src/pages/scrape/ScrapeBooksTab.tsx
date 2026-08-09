@@ -203,10 +203,10 @@ export function ScrapeBooksTab() {
               </select>
             </Field>
             <Field label="书名">
-              <input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="如：乡村美少妇" />
+              <input className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="如：我的小说" />
             </Field>
             <Field label="目录页地址">
-              <input className={inputClass} value={form.book_url} onChange={(e) => setForm({ ...form, book_url: e.target.value })} placeholder="如：http://www.daomuxiaoshuo.net/xiangcun/meishaofu/" />
+              <input className={inputClass} value={form.book_url} onChange={(e) => setForm({ ...form, book_url: e.target.value })} placeholder="如：https://example.com/novel/book/" />
             </Field>
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg border border-border text-sm text-text-secondary hover:bg-bg-dark transition-colors">

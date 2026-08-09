@@ -117,7 +117,7 @@ export function ScrapeSourcesTab() {
       {sourcesQuery.isLoading ? (
         <Empty text="加载中…" />
       ) : sourcesQuery.data?.length === 0 ? (
-        <Empty text="还没有网站源，先点击右上角「新增网站源」创建，例如盗墓小说网。" />
+        <Empty text="还没有网站源，先点击右上角「新增网站源」创建，例如一个小说站点。" />
       ) : (
         <div className="space-y-2">
           {sourcesQuery.data?.map((source) => (
@@ -168,13 +168,13 @@ export function ScrapeSourcesTab() {
         <Modal title={editing === 'new' ? '新增网站源' : '编辑网站源'} onClose={() => setEditing(null)}>
           <div className="space-y-4">
             <Field label="源名称">
-              <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如：盗墓小说网" />
+              <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如：示例小说站" />
             </Field>
             <Field label="站点地址（Base URL）">
-              <input className={inputClass} value={form.base_url} onChange={(e) => setForm({ ...form, base_url: e.target.value })} placeholder="如：http://www.daomuxiaoshuo.net" />
+              <input className={inputClass} value={form.base_url} onChange={(e) => setForm({ ...form, base_url: e.target.value })} placeholder="如：https://example.com" />
             </Field>
             <Field label="章节链接正则（对 href 匹配，留空自动识别“第x章”）">
-              <input className={inputClass} value={form.link_pattern} onChange={(e) => setForm({ ...form, link_pattern: e.target.value })} placeholder="如：nvjiaoshi/\d+\.html" />
+              <input className={inputClass} value={form.link_pattern} onChange={(e) => setForm({ ...form, link_pattern: e.target.value })} placeholder="如：chapter/\d+\.html" />
             </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field label="章节标题选择器">
@@ -225,7 +225,7 @@ export function ScrapeSourcesTab() {
                 className={inputClass}
                 value={previewUrl}
                 onChange={(e) => { setPreviewUrl(e.target.value); setPreview(null) }}
-                placeholder="如：http://www.daomuxiaoshuo.net/xiangcun/meishaofu/"
+                placeholder="如：https://example.com/novel/book/"
               />
             </Field>
             <div className="flex items-center justify-between">
