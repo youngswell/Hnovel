@@ -200,6 +200,11 @@ docker compose start
 - 解法二（兜底）：本仓库 `Dockerfile` 构建阶段已安装 `python3 / make / g++`，即使预编译包下载失败也会自动从源码现场编译，只是耗时更长。
 - Docker 基础镜像（`node:22-slim`）拉取慢的话，可在 Container Manager → 注册表设置里配置国内镜像加速器。
 
+### 容器启动失败：`Bind mount failed: '.../data' does not exists`
+`docker-compose.yml` 挂载了 `./data:/data`，但**宿主机上还没有 `data` 文件夹**（bind mount 要求目录先存在，群晖不会自动创建）。
+- 在 File Station 里，到 `docker-compose.yml` 同目录下新建文件夹 `data`，再回 Container Manager 点「启动」即可。
+- 全新部署时请先建好 `data` 再启动；有旧数据时把内容放进这个 `data` 目录再启动。
+
 ### 容器启动失败 / better-sqlite3 相关报错
 - 查看日志 `docker logs hnovel`。
 - 确认镜像按当前 CPU 架构构建（ARM 机型要用 arm64 的 node 基础镜像，本项目 Dockerfile 会自动匹配）。
