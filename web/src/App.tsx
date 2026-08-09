@@ -12,6 +12,7 @@ import { ChaptersPage } from './pages/ChaptersPage'
 import { ChapterEditPage } from './pages/ChapterEditPage'
 import { WritePage } from './pages/WritePage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ScrapePage } from './pages/ScrapePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +28,7 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/scrape" element={<ScrapePage />} />
             <Route path="/story/:id" element={<StoryPage />} />
             <Route path="/story/:id/bible" element={<BiblePage />} />
             <Route path="/story/:id/characters" element={<CharactersPage />} />

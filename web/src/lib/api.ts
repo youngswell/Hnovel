@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Story, Chapter, Foreshadow, GenerateOptions, GeneratedChapter, GeneratedOutline, OutlineChapter, PlotData, StoryArc, TimelineEvent, WorldItem, WritingPlan } from './types'
+import type { Story, Chapter, EpubImportResult, Foreshadow, GenerateOptions, GeneratedChapter, GeneratedOutline, OutlineChapter, PlotData, ScrapeBook, ScrapePreview, ScrapeSource, ScrapeTask, StoryArc, TimelineEvent, WorldItem, WritingPlan } from './types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -207,4 +207,82 @@ export async function saveOutline(storyId: string, chapters: OutlineChapter[]): 
 // Export
 export function getExportUrl(storyId: string, format: 'markdown' | 'txt' | 'html'): string {
   return `/api/stories/${storyId}/export/${format}`
+}
+
+// ---------- 文章抓取 ----------
+
+// 网站源
+export async function fetchScrapeSources(): Promise<ScrapeSource[]> {
+  return (await api.get('/scrape/sources')).data
+}
+export async function createScrapeSource(source: Partial<ScrapeSource>): Promise<ScrapeSource> {
+  return (await api.post('/scrape/sources', source)).data
+}
+export async function updateScrapeSource(id: string, updates: Partial<ScrapeSource>): Promise<ScrapeSource> {
+  return (await api.put(`/scrape/sources/${id}`, updates)).data
+}
+export async function deleteScrapeSource(id: string): Promise<void> {
+  await api.delete(`/scrape/sources/${id}`)
+}
+export async function previewScrapeSource(payload: {
+  book_url: string
+  link_pattern?: string
+  title_selector?: string
+  content_selectors?: string[]
+}): Promise<ScrapePreview> {
+  return (await api.post('/scrape/sources/preview', payload)).data
+}
+
+// 已抓取书
+export async function fetchScrapeBooks(): Promise<ScrapeBook[]> {
+  return (await api.get('/scrape/books')).data
+}
+export async function createScrapeBook(book: Partial<ScrapeBook>): Promise<ScrapeBook> {
+  return (await api.post('/scrape/books', book)).data
+}
+export async function updateScrapeBook(id: string, updates: Partial<ScrapeBook>): Promise<ScrapeBook> {
+  return (await api.put(`/scrape/books/${id}`, updates)).data
+}
+export async function deleteScrapeBook(id: string): Promise<void> {
+  await api.delete(`/scrape/books/${id}`)
+}
+export async function scanScrapeBook(id: string): Promise<ScrapePreview & { book_id: string }> {
+  return (await api.post(`/scrape/books/${id}/scan`)).data
+}
+
+// 抓取任务
+export async function fetchScrapeTasks(): Promise<ScrapeTask[]> {
+  return (await api.get('/scrape/tasks')).data
+}
+export async function fetchScrapeTask(id: string): Promise<ScrapeTask> {
+  return (await api.get(`/scrape/tasks/${id}`)).data
+}
+export async function startScrapeTask(bookId: string, startChapter = 1): Promise<ScrapeTask> {
+  return (await api.post('/scrape/tasks', { book_id: bookId, start_chapter: startChapter })).data
+}
+export async function cancelScrapeTask(id: string): Promise<void> {
+  await api.post(`/scrape/tasks/${id}/cancel`)
+}
+export async function deleteScrapeTask(id: string): Promise<void> {
+  await api.delete(`/scrape/tasks/${id}`)
+}
+
+// ---------- EPUB 导入 ----------
+
+export async function importEpub(
+  file: File,
+  options?: { title?: string; startChapter?: number },
+  onProgress?: (percent: number) => void,
+): Promise<EpubImportResult> {
+  const form = new FormData()
+  form.append('file', file)
+  if (options?.title?.trim()) form.append('title', options.title.trim())
+  if (options?.startChapter && options.startChapter > 1) form.append('start_chapter', String(options.startChapter))
+
+  const { data } = await api.post('/import/epub', form, {
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+    },
+  })
+  return data
 }

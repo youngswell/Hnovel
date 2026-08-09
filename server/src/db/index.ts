@@ -200,6 +200,48 @@ export function initDatabase(): void {
       UNIQUE(story_id, chapter_number)
     );
 
+    CREATE TABLE IF NOT EXISTS scrape_sources (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      base_url TEXT NOT NULL,
+      link_pattern TEXT DEFAULT '',
+      title_selector TEXT DEFAULT 'h2',
+      content_selectors TEXT DEFAULT '["#content",".content","#chaptercontent",".chapter-content","div.read-content",".read-content","article"]',
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS scrape_books (
+      id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL REFERENCES scrape_sources(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      book_url TEXT NOT NULL,
+      story_id TEXT REFERENCES stories(id) ON DELETE SET NULL,
+      status TEXT DEFAULT 'idle',
+      total_chapters INTEGER DEFAULT 0,
+      imported_chapters INTEGER DEFAULT 0,
+      error TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS scrape_tasks (
+      id TEXT PRIMARY KEY,
+      book_id TEXT NOT NULL REFERENCES scrape_books(id) ON DELETE CASCADE,
+      status TEXT DEFAULT 'queued',
+      start_chapter INTEGER DEFAULT 1,
+      total INTEGER DEFAULT 0,
+      done INTEGER DEFAULT 0,
+      failed INTEGER DEFAULT 0,
+      current_title TEXT DEFAULT '',
+      error TEXT DEFAULT '',
+      started_at TEXT,
+      finished_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_characters_story ON characters(story_id);
     CREATE INDEX IF NOT EXISTS idx_chapters_story ON chapters(story_id);
     CREATE INDEX IF NOT EXISTS idx_relationships_story ON character_relationships(story_id);
@@ -209,6 +251,9 @@ export function initDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_timeline_events_story ON timeline_events(story_id);
     CREATE INDEX IF NOT EXISTS idx_foreshadows_story ON foreshadows(story_id);
     CREATE INDEX IF NOT EXISTS idx_outline_chapters_story ON outline_chapters(story_id);
+    CREATE INDEX IF NOT EXISTS idx_scrape_books_source ON scrape_books(source_id);
+    CREATE INDEX IF NOT EXISTS idx_scrape_tasks_book ON scrape_tasks(book_id);
+    CREATE INDEX IF NOT EXISTS idx_scrape_tasks_status ON scrape_tasks(status);
   `)
 
   // Migration: add reference_style to existing databases

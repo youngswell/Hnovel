@@ -8,9 +8,12 @@ import { characterRouter } from './routes/characters.js'
 import { exportRouter } from './routes/export.js'
 import { planningRouter } from './routes/planning.js'
 import { settingsRouter } from './routes/settings.js'
+import { scrapeRouter } from './routes/scrape.js'
+import { importRouter } from './routes/import.js'
 import { initDatabase } from './db/index.js'
 import { errorHandler, notFoundHandler } from './middleware/errors.js'
 import { getLlmConfig, testLlmConfig } from './config/llm.js'
+import { recoverInterruptedTasks } from './scrape/taskManager.js'
 
 dotenv.config()
 
@@ -33,6 +36,8 @@ app.use('/api/stories', characterRouter)
 app.use('/api/stories', exportRouter)
 app.use('/api/stories', planningRouter)
 app.use('/api/settings', settingsRouter)
+app.use('/api/scrape', scrapeRouter)
+app.use('/api/import', importRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -67,6 +72,7 @@ app.use(errorHandler)
 
 // Initialize database and start server
 initDatabase()
+recoverInterruptedTasks()
 
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`[Hnovel Server] Running on http://127.0.0.1:${PORT}`)

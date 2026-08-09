@@ -4,12 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchStories, createStory, deleteStory } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { ModalPortal } from '../components/ModalPortal'
+import { ImportEpubModal } from '../components/ImportEpubModal'
 import type { Story } from '../lib/types'
 
 export function HomePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [newStory, setNewStory] = useState({
     title: '', genre: 'school', rating: 'safe' as Story['rating'],
     explicit_level: 'moderate' as Story['explicit_level'],
@@ -36,11 +38,19 @@ export function HomePage() {
           <h1 className="text-2xl font-bold text-text-primary">我的故事</h1>
           <p className="text-text-secondary mt-1">管理你的长篇小说项目</p>
         </div>
-        <button type="button" onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all font-medium text-sm shadow-md shadow-primary/20 btn-press">
-          <Icon name="plus" className="w-4 h-4" /> 创建新故事
-        </button>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 border border-border hover:bg-bg-card text-text-secondary hover:text-text-primary rounded-xl transition-all font-medium text-sm">
+            <Icon name="book" className="w-4 h-4" /> 导入 EPUB
+          </button>
+          <button type="button" onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all font-medium text-sm shadow-md shadow-primary/20 btn-press">
+            <Icon name="plus" className="w-4 h-4" /> 创建新故事
+          </button>
+        </div>
       </div>
+
+      {showImport && <ImportEpubModal onClose={() => setShowImport(false)} />}
 
       {showCreate && (
         <ModalPortal>

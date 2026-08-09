@@ -28,6 +28,9 @@ export function Layout() {
           <NavLink to="/" end className={linkClass}>
             <Icon name="home" /> 工作台
           </NavLink>
+          <NavLink to="/scrape" className={linkClass}>
+            <Icon name="layers" /> 文章抓取
+          </NavLink>
           <NavLink to="/settings" className={linkClass}>
             <Icon name="settings" /> 应用设置
           </NavLink>

@@ -193,3 +193,73 @@ export interface Foreshadow {
   notes: string
 }
 export interface PlotData { structureModel: string; arcs: StoryArc[]; events: TimelineEvent[]; foreshadows: Foreshadow[] }
+
+// ---------- 文章抓取 ----------
+
+export interface ScrapeSource {
+  id: string
+  name: string
+  base_url: string
+  link_pattern: string
+  title_selector: string
+  content_selectors: string[]
+  enabled: boolean | number
+  book_count?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ScrapeBook {
+  id: string
+  source_id: string
+  source_name?: string
+  title: string
+  book_url: string
+  story_id?: string | null
+  story_title?: string
+  status: 'idle' | 'scraping' | 'done' | 'failed'
+  total_chapters: number
+  imported_chapters: number
+  error: string
+  created_at: string
+  updated_at: string
+}
+
+export type ScrapeTaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface ScrapeTask {
+  id: string
+  book_id: string
+  book_title?: string
+  status: ScrapeTaskStatus
+  start_chapter: number
+  total: number
+  done: number
+  failed: number
+  current_title: string
+  error: string
+  is_running?: boolean
+  started_at: string | null
+  finished_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ScrapePreview {
+  count: number
+  title: string
+  sample: Array<{ url: string; text: string }>
+}
+
+// ---------- EPUB 导入 ----------
+
+export interface EpubImportResult {
+  story_id: string
+  story_title: string
+  imported: number
+  total: number
+  source_title: string
+  creator: string
+  first: { number: number; title: string } | null
+  last: { number: number; title: string } | null
+}
