@@ -1,6 +1,7 @@
-# syntax=docker/dockerfile:1
 # Hnovel — 多阶段构建：先在 Node 环境中构建前端与后端，再产出精简的运行时镜像。
 # 部署目标：群晖 Container Manager（x86_64 / aarch64 均可）。
+# 说明：不使用 "# syntax=docker/dockerfile:1"，避免构建时从 Docker Hub 拉取 BuildKit 前端镜像（国内网络易 i/o timeout）。
+# 本文件只用标准 Dockerfile 语法，删除该指令完全安全。
 
 # ---------- Stage 1: builder ----------
 FROM node:22-slim AS builder

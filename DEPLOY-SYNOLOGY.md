@@ -163,6 +163,30 @@ docker compose start
 ### 端口被占用
 改 `docker-compose.yml` 里的 `ports: "4000:4000"` 左边为其他端口（如 `"8080:4000"`），再重新构建。
 
+### `docker compose` 报 unknown shorthand flag: 'd'
+群晖自带的 docker CLI **没有安装 Compose v2 插件**，不支持 `docker compose` 子命令。
+- 首选：改用 Container Manager → 项目 → 新增 → 选择代码文件夹 →「使用现有的 docker-compose.yml」，群晖图形界面自带 Compose 能力。
+- 或安装 Compose 插件后用命令行：
+  ```bash
+  sudo mkdir -p /usr/local/lib/docker/cli-plugins
+  sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" -o /usr/local/lib/docker/cli-plugins/docker-compose   # ARM 换成 linux-aarch64
+  sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  sudo docker compose version   # 验证
+  ```
+
+### 构建报 `registry-1.docker.io ... i/o timeout`（Docker Hub 拉取失败，国内网络常见）
+群晖访问不了 Docker Hub 时会卡在「拉取镜像/构建前端」这一步。
+- 本项目 `Dockerfile` 已移除 `# syntax=docker/dockerfile:1`（避免额外拉取构建前端镜像）。
+- **根本解法：配置 Docker 镜像加速器**：
+  1. 打开 Container Manager → 左侧「**注册表**」→ 右上角「**设置**」。
+  2. 找到「注册表加速器 / Registry mirror」，添加以下一个或多个地址后保存：
+     - `https://docker.m.daocloud.io`
+     - `https://docker.1ms.run`
+     - `https://docker.1panel.live`
+     - `https://hub.rat.dev`
+  3. 回到「项目」→ 选中 hnovel → 点「**重新构建**」（或先删除该项目再重新新增）。
+- 若加速器都不可用，可把 `Dockerfile` 里的 `FROM node:22-slim` 改为 `FROM docker.m.daocloud.io/library/node:22-slim`（两处都要改）再构建。
+
 ### 构建很慢 / better-sqlite3 下载超时（国内网络常见）
 - `better-sqlite3` 是原生模块，构建时 `prebuild-install` 默认从 GitHub 下载预编译包，国内经常超时。
 - 解法一：走 npmmirror 镜像。编辑 `docker-compose.yml`，在 `build.args` 里加上：
