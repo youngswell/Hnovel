@@ -4,7 +4,8 @@
 # 本文件只用标准 Dockerfile 语法，删除该指令完全安全。
 
 # ---------- Stage 1: builder ----------
-FROM node:22-slim AS builder
+ARG BASE_IMAGE=node:22-slim
+FROM ${BASE_IMAGE} AS builder
 WORKDIR /app
 
 # better-sqlite3 是原生模块，需要编译工具链（prebuilt 下载失败时会现场编译）
@@ -39,7 +40,7 @@ COPY server/ ./
 RUN npm run build
 
 # ---------- Stage 2: runner ----------
-FROM node:22-slim AS runner
+FROM ${BASE_IMAGE} AS runner
 ENV NODE_ENV=production \
     PORT=4000 \
     HOST=0.0.0.0 \

@@ -185,7 +185,7 @@ docker compose start
      - `https://docker.1panel.live`
      - `https://hub.rat.dev`
   3. 回到「项目」→ 选中 hnovel → 点「**重新构建**」（或先删除该项目再重新新增）。
-- 若加速器都不可用，可把 `Dockerfile` 里的 `FROM node:22-slim` 改为 `FROM docker.m.daocloud.io/library/node:22-slim`（两处都要改）再构建。
+- 本项目已内置「基础镜像走国内代理」机制：`docker-compose.yml` 的 `build.args.BASE_IMAGE` 默认 `docker.m.daocloud.io/library/node:22-slim`，构建时直接走国内可直连的代理，不再强依赖 Docker Hub。若该地址不通，把 `BASE_IMAGE` 换成 `docker.1ms.run/library/node:22-slim` 或 `docker.1panel.live/library/node:22-slim` 再构建。
 
 ### 构建很慢 / better-sqlite3 下载超时（国内网络常见）
 - `better-sqlite3` 是原生模块，构建时 `prebuild-install` 默认从 GitHub 下载预编译包，国内经常超时。

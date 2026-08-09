@@ -5,9 +5,12 @@ services:
   hnovel:
     build:
       context: .
-      # 国内网络下载 better-sqlite3 预编译包超时时，取消注释走镜像加速：
-      # args:
-      #   BETTER_SQLITE3_BINARY_HOST: https://npmmirror.com/mirrors/better-sqlite3/
+      args:
+        # 基础镜像走国内可直连的镜像代理（官方 Docker Hub 在国内常超时/断连）；
+        # 若 docker.m.daocloud.io 不通，可换成 docker.1ms.run 或 docker.1panel.live
+        BASE_IMAGE: docker.m.daocloud.io/library/node:22-slim
+        # 国内网络下载 better-sqlite3 预编译包超时时，取消注释走镜像加速：
+        # BETTER_SQLITE3_BINARY_HOST: https://npmmirror.com/mirrors/better-sqlite3/
     image: hnovel:latest
     container_name: hnovel
     restart: unless-stopped
