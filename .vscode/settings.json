@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^node -e \"\nconst fs=require\\('fs'\\),path=require\\('path'\\);\nconst dir='E:/Project/Hnovel/node_modules/rebook/dist';\nconst files=fs\\.readdirSync\\(dir\\)\\.filter\\(f=>f\\.endsWith\\('\\.js'\\)\\);\nfor\\(const f of files\\)\\{\n  const c=fs\\.readFileSync\\(path\\.join\\(dir,f\\),'utf8'\\);\n  for\\(const k of \\['loadSection','loadTextBlocks','renderVisibleLines','prepareBlocks','loadSectionAsync'\\]\\)\\{\n    const n=\\(c\\.match\\(new RegExp\\(k,'g'\\)\\)\\|\\|\\[\\]\\)\\.length;\n    if\\(n>0\\) console\\.log\\(f,k,n\\);\n  \\}\n\\}\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
