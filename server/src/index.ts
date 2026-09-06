@@ -11,6 +11,7 @@ import { settingsRouter } from './routes/settings.js'
 import { scrapeRouter } from './routes/scrape.js'
 import { importRouter } from './routes/import.js'
 import { analyzeRouter } from './routes/analyze.js'
+import { textModifyRouter } from './routes/textModify.js'
 import { initDatabase } from './db/index.js'
 import { errorHandler, notFoundHandler } from './middleware/errors.js'
 import { getLlmConfig, testLlmConfig } from './config/llm.js'
@@ -42,6 +43,7 @@ app.use('/api/settings', settingsRouter)
 app.use('/api/scrape', scrapeRouter)
 app.use('/api/import', importRouter)
 app.use('/api/stories', analyzeRouter)
+app.use('/api/stories', textModifyRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => {

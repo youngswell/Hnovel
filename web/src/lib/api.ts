@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Story, Chapter, AnalyzeCategory, EpubImportResult, Foreshadow, GenerateOptions, GeneratedChapter, GeneratedOutline, OutlineChapter, PlotData, ScrapeBook, ScrapePreview, ScrapeSource, ScrapeTask, StoryAnalysisResult, StoryArc, TimelineEvent, WorldItem, WritingPlan } from './types'
+import type { Story, Chapter, AnalyzeCategory, EpubImportResult, Foreshadow, GenerateOptions, GeneratedChapter, GeneratedOutline, OutlineChapter, PlotData, ScrapeBook, ScrapePreview, ScrapeSource, ScrapeTask, StoryAnalysisResult, StoryArc, TextModifyRequest, TextModifyResponse, TimelineEvent, WorldItem, WritingPlan } from './types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -148,6 +148,12 @@ export async function generateOutline(storyId: string, options: GenerateOptions)
 
 export async function generateChapter(storyId: string, options: GenerateOptions): Promise<GeneratedChapter> {
   const { data } = await api.post(`/stories/${storyId}/chapters/generate`, options)
+  return data
+}
+
+// AI文本修改
+export async function modifyText(storyId: string, options: TextModifyRequest): Promise<TextModifyResponse> {
+  const { data } = await api.post(`/stories/${storyId}/text-modify`, options)
   return data
 }
 

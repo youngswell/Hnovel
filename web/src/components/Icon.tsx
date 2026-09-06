@@ -157,6 +157,11 @@ export function Icon({ name, className = 'w-5 h-5' }: { name: string; className?
         <path d="M10 17a2 2 0 104 0c0-2-2-4-2-4s-2 2-2 4z"/>
       </svg>
     ),
+    minus: (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M5 12h14"/>
+      </svg>
+    ),
   }
 
   return icons[name] || icons.home

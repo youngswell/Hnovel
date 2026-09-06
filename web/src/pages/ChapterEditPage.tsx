@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
 import { fetchChapter, saveChapter, generateChapter } from '../lib/api'
 import { Icon } from '../components/Icon'
 import { ModalPortal } from '../components/ModalPortal'
+import { AiTextModifier } from '../components/AiTextModifier'
 
 export function ChapterEditPage() {
   const { id, num } = useParams<{ id: string; num: string }>()
@@ -13,14 +17,40 @@ export function ChapterEditPage() {
     queryFn: () => fetchChapter(id!, Number(num)),
     enabled: !!id && !!num,
   })
-  const [content, setContent] = useState('')
   const [saved, setSaved] = useState(false)
+  const [wordCount, setWordCount] = useState(0)
 
   // AI rewrite state
   const [showRewrite, setShowRewrite] = useState(false)
   const [rewritePrompt, setRewritePrompt] = useState('')
   const [rewriting, setRewriting] = useState(false)
   const [rewriteResult, setRewriteResult] = useState('')
+
+  // TipTap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({
+        placeholder: '在这里编辑章节内容...',
+      }),
+    ],
+    editorProps: {
+      attributes: {
+        class: 'w-full min-h-[500px] p-6 text-text-primary bg-transparent focus:outline-none leading-relaxed text-sm font-sans prose prose-sm max-w-none',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      setWordCount(editor.getText().replace(/\s/g, '').length)
+    },
+  })
+
+  // 当章节数据加载后，设置编辑器内容
+  useEffect(() => {
+    if (chapter?.content && editor) {
+      editor.commands.setContent(chapter.content)
+      setWordCount(chapter.content.replace(/\s/g, '').length)
+    }
+  }, [chapter, editor])
 
   const saveMutation = useMutation({
     mutationFn: (c: string) => saveChapter(id!, Number(num), {
@@ -36,7 +66,6 @@ export function ChapterEditPage() {
     },
   })
 
-  const displayContent = content || chapter?.content || ''
   const isNsfwChapter = chapter?.scene_type !== 'normal'
 
   const handleRewrite = async () => {
@@ -51,12 +80,24 @@ export function ChapterEditPage() {
         additionalInstructions: `【最高优先级指令】请根据以下要求重写本章内容，这些要求优先于任何其他设定：\n\n${rewritePrompt}\n\n【重要】请在重写时严格遵循以上指令，不要忽略任何要求。`,
       })
       setRewriteResult(result.content)
-      setContent(result.content)
+      editor?.commands.setContent(result.content)
       setShowRewrite(false)
       setRewritePrompt('')
     } catch (err: any) {
       alert('AI重写失败: ' + (err.response?.data?.error || err.message))
     } finally { setRewriting(false) }
+  }
+
+  const handleSave = () => {
+    const content = editor?.getHTML() || ''
+    saveMutation.mutate(content)
+  }
+
+  const handleRestore = () => {
+    if (chapter?.content) {
+      editor?.commands.setContent(chapter.content)
+    }
+    setRewriteResult('')
   }
 
   if (isLoading) return (
@@ -78,7 +119,7 @@ export function ChapterEditPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">{chapter?.title || `第${num}章`}</h1>
         <div className="flex items-center gap-3 mt-2">
-          {chapter && <span className="text-sm text-text-muted">{(content || chapter.content || '').replace(/\s/g, '').length.toLocaleString()} 字</span>}
+          <span className="text-sm text-text-muted">{wordCount.toLocaleString()} 字</span>
           {isNsfwChapter && <span className="text-xs px-2 py-0.5 rounded-full bg-primary-bg text-primary">重点场景</span>}
           {rewriteResult && <span className="text-xs px-2 py-0.5 rounded-full bg-success-bg text-success">AI已重写</span>}
         </div>
@@ -133,19 +174,28 @@ export function ChapterEditPage() {
         </ModalPortal>
       )}
 
+      {/* TipTap Editor */}
       <div className="bg-bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-bg-dark">
           <Icon name="edit" className="w-3.5 h-3.5 text-text-muted" />
-          <span className="text-xs text-text-muted">Markdown 编辑器</span>
+          <span className="text-xs text-text-muted">富文本编辑器</span>
           {rewriteResult && <span className="text-xs text-success ml-auto">已通过AI重写</span>}
         </div>
-        <textarea value={displayContent} onChange={e => setContent(e.target.value)}
-          className="w-full min-h-[500px] p-6 text-text-primary bg-transparent resize-none focus:outline-none leading-relaxed text-sm font-sans"
-          placeholder="在这里编辑章节内容..." />
+        <EditorContent editor={editor} />
       </div>
 
+      {/* AI Text Modifier Floating Toolbar */}
+      <AiTextModifier
+        editor={editor}
+        storyId={id!}
+        onTextReplaced={() => {
+          const text = editor?.getText() || ''
+          setWordCount(text.replace(/\s/g, '').length)
+        }}
+      />
+
       <div className="flex gap-3 mt-4">
-        <button type="button" onClick={() => saveMutation.mutate(displayContent)}
+        <button type="button" onClick={handleSave}
           disabled={saveMutation.isPending}
           className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-white rounded-xl transition-all text-sm font-medium shadow-sm">
           <Icon name="check" className="w-4 h-4" />
@@ -156,7 +206,7 @@ export function ChapterEditPage() {
           <Icon name="sparkle" className="w-4 h-4" />AI重写
         </button>
         {rewriteResult && (
-          <button type="button" onClick={() => { setContent(chapter?.content || ''); setRewriteResult('') }}
+          <button type="button" onClick={handleRestore}
             className="inline-flex items-center gap-1.5 px-5 py-2.5 border border-border hover:bg-bg-dark text-text-secondary rounded-xl transition-all text-sm">
             <Icon name="refresh" className="w-4 h-4" />恢复原文
           </button>

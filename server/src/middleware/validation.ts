@@ -154,3 +154,14 @@ export const outlineSchema = z.object({
     }, z.number().int().min(100).max(100000)),
   })).max(500).refine(items => new Set(items.map(item => item.number)).size === items.length, '章节编号不能重复'),
 })
+
+/** AI文本修改请求校验 */
+export const textModifySchema = z.object({
+  selectedText: z.string().trim().min(1, '选中文字不能为空').max(50000),
+  prompt: z.string().trim().min(1, '提示词不能为空').max(10000),
+  mode: z.enum(['rewrite', 'expand', 'condense', 'polish', 'custom']).optional(),
+  context: z.object({
+    before: z.string().max(5000).optional(),
+    after: z.string().max(5000).optional(),
+  }).optional(),
+})

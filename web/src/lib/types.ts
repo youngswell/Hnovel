@@ -125,6 +125,23 @@ export interface GeneratedChapter {
   wordCount: number
 }
 
+export type ModifyMode = 'rewrite' | 'expand' | 'condense' | 'polish' | 'custom'
+
+export interface TextModifyRequest {
+  selectedText: string
+  prompt: string
+  mode?: ModifyMode
+  context?: {
+    before?: string
+    after?: string
+  }
+}
+
+export interface TextModifyResponse {
+  modifiedText: string
+  mode: ModifyMode
+}
+
 export interface WritingPlanChapter {
   number: number
   goal: string
